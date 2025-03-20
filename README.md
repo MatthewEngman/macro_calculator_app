@@ -1,3 +1,5 @@
+"Thar be dragons" -Karl Busse
+
 I wanted to create a mobile app off a hobby project I was doing in python that originally was intended to iterate the code as I was learning more of the language. I had been listening to a few episodes of the real python podcast and had heard the term “vibe coding” mentioned. 
 
 I wasn’t aware that I was doing that for a while now (I didn’t know there was a term for it). Coming from a QA centric perspective most automation tools were some sort of distilled version of a language. (at least what I had been using) Unless there was something the framework couldn’t do out of the box, it usually wasn’t necessary to dig into depths of the native language to create what you needed, but it did happen from time to time.
