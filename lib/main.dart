@@ -229,11 +229,6 @@ class MyForm extends StatelessWidget {
         SizedBox(height: 20),
 
         // Result Display
-        // Text('Calories: ${Provider.of<CalculatorModel>(context).calories}'),
-        // Text('Protein: ${Provider.of<CalculatorModel>(context).protein}'),
-        // Text('Carbs: ${Provider.of<CalculatorModel>(context).carbs}'),
-        // Text('Fat: ${Provider.of<CalculatorModel>(context).fat}'),
-
         Text('Calories: ${Provider.of<CalculatorModel>(context).calories.round()}'),
         Text('Protein: ${Provider.of<CalculatorModel>(context).protein.round()}'),
         Text('Carbs: ${Provider.of<CalculatorModel>(context).carbs.round()}'),
