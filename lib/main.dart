@@ -32,6 +32,8 @@ class MyApp extends StatelessWidget {
 }
 
 class MyForm extends StatelessWidget {
+  const MyForm({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -60,26 +62,61 @@ class MyForm extends StatelessWidget {
         ),
         SizedBox(height: 20),
 
-        // Height Input
-        Text('Height (inches):'),
-        TextFormField(
-          keyboardType: TextInputType.number,
-          onChanged: (value) {
-            Provider.of<CalculatorModel>(context, listen: false).height =
-                double.tryParse(value) ?? 0.0;
-          },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your height';
-            }
-            if (double.tryParse(value) == null) {
-              return 'Please enter a valid number';
-            }
-            if (double.parse(value) <= 0) {
-              return 'Height must be greater than 0';
-            }
-            return null;
-          },
+       // Height Input
+        Text('Height:'),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Feet'),
+                  TextFormField(
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      // Store the feet value temporarily
+                      Provider.of<CalculatorModel>(context, listen: false)
+                          .setFeet(int.tryParse(value) ?? 0);
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter feet';
+                      }
+                      if (int.tryParse(value) == null) {
+                        return 'Invalid number';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Inches'),
+                  TextFormField(
+                    keyboardType: TextInputType.number,
+                    onChanged: (value) {
+                      Provider.of<CalculatorModel>(context, listen: false)
+                          .setInches(int.tryParse(value) ?? 0);
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Enter inches';
+                      }
+                      if (int.tryParse(value) == null) {
+                        return 'Invalid number';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         SizedBox(height: 20),
 
