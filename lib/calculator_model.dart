@@ -46,8 +46,7 @@ class CalculatorModel extends ChangeNotifier {
   double _calculateBMR(String sex, double weight, double totalHeightInInches, int age) {
     if (sex == 'male') {
       return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
-          (5 * age) +
-          5;
+          (5 * age) + 5;
     } else {
       return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
           (5 * age) - 161;
