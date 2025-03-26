@@ -9,8 +9,14 @@ class CalculatorModel extends ChangeNotifier {
   int age = 0;
   String sex = 'male'; // Default value
   String activityLevel = 'sedentary'; //Default Value
-  String goal = 'maintain';
+  String _goal = 'maintain';
   double weightChangeRate = 0.0; // lbs per week
+
+  String get goal => _goal;
+  set goal(String value) {
+    _goal = value;
+    notifyListeners();
+  }
 
   // Calculated Results
   double calories = 0.0;
@@ -81,20 +87,22 @@ class CalculatorModel extends ChangeNotifier {
        double bmr = calculateBMR();
        double tdee = _calculateTDEE(bmr);
 
-       // Adjust calories based on goal
-       if (goal == 'lose') {
-         calories = tdee - (weightChangeRate * 500); // 1 lb fat ~ 3500 calories
-       } else if (goal == 'gain') {
-         calories = tdee + (weightChangeRate * 500);
+       // 1. Adjust target calories based on the goal
+       if (_goal == 'lose') {
+         calories = tdee - (weightChangeRate * 500); // Subtract calories for weight loss
+       } else if (_goal == 'gain') {
+         calories = tdee + (weightChangeRate * 500); // Add calories for weight gain
        } else {
-         calories = tdee; // Maintain
-
-         // Calculate macros (example percentages - adjust as needed)
-         protein = (calories * 0.30) / 4; // 30% protein, 4 calories/gram
-         carbs = (calories * 0.40) / 4; // 40% carbs, 4 calories/gram
-         fat = (calories * 0.30) / 9; // 30% fat, 9 calories/gram
-
-         notifyListeners(); // Important: Notify the UI to rebuild
+         calories = tdee; // Maintain: calories equal TDEE
        }
+
+       // 2. Calculate macros based on the final adjusted 'calories' value
+       // These calculations now happen for ALL goals (lose, maintain, gain)
+       protein = (calories * 0.30) / 4; // 30% protein, 4 kcal/gram
+       carbs = (calories * 0.40) / 4;   // 40% carbs, 4 kcal/gram
+       fat = (calories * 0.30) / 9;     // 30% fat, 9 kcal/gram
+
+       // 3. Notify listeners to update the UI
+       notifyListeners();
      }
-}
+  }
