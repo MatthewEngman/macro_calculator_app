@@ -300,8 +300,8 @@ class _MacroCalculatorFormState extends State<MacroCalculatorForm> {
                     const Text('Gain Weight'),
                   ],
                 ),
-                if (Provider.of<CalculatorModel>(context).goal !=
-                    'maintain') ...[
+                if (Provider.of<CalculatorModel>(context).goal == 'lose' ||
+                    Provider.of<CalculatorModel>(context).goal == 'gain') ...[
                   const SizedBox(height: 20),
                   //Weight change input
                   const Text('Weight Change Rate (lbs/week)',
@@ -325,7 +325,7 @@ class _MacroCalculatorFormState extends State<MacroCalculatorForm> {
                       return null;
                     },
                     decoration: const InputDecoration(
-                      labelText: 'Weight Change Rate',
+                      //labelText: 'Weight Change Rate',
                       hintText: 'Enter rate in lbs/week',
                     ),
                   )
