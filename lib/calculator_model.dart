@@ -39,17 +39,20 @@ class CalculatorModel extends ChangeNotifier {
     }
   }
 
-     double _calculateBMR() {
-       if (sex == 'male') {
-         return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
-             (5 * age) +
-             5;
-       } else {
-         return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
-             (5 * age) -
-             161;
-       }
-     }
+  double calculateBMR() {
+    return _calculateBMR(sex, weight, totalHeightInInches, age);
+  }
+
+  double _calculateBMR(String sex, double weight, double totalHeightInInches, int age) {
+    if (sex == 'male') {
+      return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
+          (5 * age) +
+          5;
+    } else {
+      return (10 * (weight * 0.453592)) + (6.25 * (totalHeightInInches * 2.54)) -
+          (5 * age) - 161;
+    }
+  }
 
      double _calculateTDEE(double bmr) {
        double activityMultiplier;
@@ -76,7 +79,7 @@ class CalculatorModel extends ChangeNotifier {
      }
 
      void calculateMacros() {
-       double bmr = _calculateBMR();
+       double bmr = calculateBMR();
        double tdee = _calculateTDEE(bmr);
 
        // Adjust calories based on goal
