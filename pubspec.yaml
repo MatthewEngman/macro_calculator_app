@@ -31,6 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
   provider: ^6.0.5 # Use the latest stable version
+  flutter_native_splash: ^2.4.5
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -58,7 +59,16 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/images/
 
+
+flutter_native_splash:
+    # Background color for the splash screen (you can use a hex code)
+    color: "#fc0330" # Example: White background
+
+    # The path to your logo image file (relative to the project root)
+    image: assets/images/logo.png
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

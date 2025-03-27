@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
             color: Colors.grey,
           ),
           floatingLabelBehavior: FloatingLabelBehavior.always, // Ensure label is always visible
-          contentPadding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 12.0),// Label color
+          contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 12.0),// Label color
 
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -65,14 +65,15 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MacroCalculatorForm extends StatefulWidget { //Made stateful to fix dropdown bug.
+class MacroCalculatorForm extends StatefulWidget {
   const MacroCalculatorForm({super.key});
 
   @override
-  _MacroCalculatorFormState createState() => _MacroCalculatorFormState();
+  MacroCalculatorFormState createState() => MacroCalculatorFormState();
 }
 
-class _MacroCalculatorFormState extends State<MacroCalculatorForm> {
+class MacroCalculatorFormState extends State<MacroCalculatorForm> {
+
   final _formKey = GlobalKey<FormState>();
 
   @override
