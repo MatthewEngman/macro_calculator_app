@@ -69,6 +69,10 @@ flutter_native_splash:
 
     # The path to your logo image file (relative to the project root)
     image: assets/images/logo.png
+
+ios: true
+
+web: false
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
