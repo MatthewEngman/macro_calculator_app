@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'calculator_model.dart'; // Ensure this path is correct
+import 'calculator_model.dart';
+
 
 void main() {
   runApp(
