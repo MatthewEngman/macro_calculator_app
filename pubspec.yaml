@@ -1,4 +1,4 @@
-name: macro_calculator
+name: macro_masher
 description: "A new Flutter project."
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
@@ -19,22 +19,31 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter_native_splash:
   color: "#fc0330"
   image: assets/images/logo.png
   android: true
   ios: true
+  android_12:
+    image: assets/images/logo.png
+    icon_background_color: "#fc0330"
+  fullscreen: true
+  android_gravity: center
+  ios_content_mode: center
+  web: false
+  android_screen_orientation: portrait
+  branding_mode: bottom
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#fc0330" # Same as splash screen color
+  adaptive_icon_foreground: "assets/images/logo.png"
 
 flutter:
   uses-material-design: true
   assets:
     - assets/images/ # Ensure this is indented by 2 spaces under 'flutter'
-
-# This section should be at the root level (no indentation)
-
-
-# Optional commented-out lines are fine
-#  image_ios: assets/images/logo-ios.png
-#  image_android: assets/images/logo-android.png
-#  ios: true
