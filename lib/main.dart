@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'calculator_model.dart';
 
-
 void main() {
   runApp(
     ChangeNotifierProvider(
@@ -34,12 +33,13 @@ class MyApp extends StatelessWidget {
             borderSide: const BorderSide(color: Colors.red, width: 2.0),
             borderRadius: BorderRadius.circular(10.0),
           ),
-          labelStyle: const TextStyle(
-            color: Colors.grey,
-          ),
-          floatingLabelBehavior: FloatingLabelBehavior.always, // Ensure label is always visible
-          contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 12.0),// Label color
-
+          labelStyle: const TextStyle(color: Colors.grey),
+          floatingLabelBehavior:
+              FloatingLabelBehavior.always, // Ensure label is always visible
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 20.0,
+            horizontal: 12.0,
+          ), // Label color
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
@@ -49,13 +49,13 @@ class MyApp extends StatelessWidget {
             ),
             backgroundColor: Colors.indigo, // Primary button color
             foregroundColor: Colors.white,
-            textStyle: const TextStyle(
-              fontSize: 18,
-            ),
+            textStyle: const TextStyle(fontSize: 18),
           ),
         ),
         radioTheme: RadioThemeData(
-          fillColor: WidgetStateProperty.all(Colors.indigo), // Active radio color
+          fillColor: WidgetStateProperty.all(
+            Colors.indigo,
+          ), // Active radio color
         ),
         dropdownMenuTheme: const DropdownMenuThemeData(
           textStyle: TextStyle(fontSize: 16),
@@ -74,21 +74,18 @@ class MacroCalculatorForm extends StatefulWidget {
 }
 
 class MacroCalculatorFormState extends State<MacroCalculatorForm> {
-
   final _formKey = GlobalKey<FormState>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Macro Masher'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Macro Masher'), centerTitle: true),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView( // Make the form scrollable
+          child: SingleChildScrollView(
+            // Make the form scrollable
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
@@ -97,8 +94,8 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                 TextFormField(
                   keyboardType: TextInputType.number,
                   onChanged: (value) {
-                    Provider.of<CalculatorModel>(context, listen: false).weight =
-                        double.tryParse(value) ?? 0.0;
+                    Provider.of<CalculatorModel>(context, listen: false)
+                        .weight = double.tryParse(value) ?? 0.0;
                   },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -131,8 +128,10 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                           TextFormField(
                             keyboardType: TextInputType.number,
                             onChanged: (value) {
-                              Provider.of<CalculatorModel>(context, listen: false)
-                                  .setFeet(int.tryParse(value) ?? 0);
+                              Provider.of<CalculatorModel>(
+                                context,
+                                listen: false,
+                              ).setFeet(int.tryParse(value) ?? 0);
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -159,8 +158,10 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                           TextFormField(
                             keyboardType: TextInputType.number,
                             onChanged: (value) {
-                              Provider.of<CalculatorModel>(context, listen: false)
-                                  .setInches(int.tryParse(value) ?? 0);
+                              Provider.of<CalculatorModel>(
+                                context,
+                                listen: false,
+                              ).setInches(int.tryParse(value) ?? 0);
                             },
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -214,15 +215,18 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                 DropdownButtonFormField<String>(
                   value: Provider.of<CalculatorModel>(context).sex,
                   onChanged: (value) {
-                    Provider.of<CalculatorModel>(context, listen: false).sex = value!;
+                    Provider.of<CalculatorModel>(context, listen: false).sex =
+                        value!;
                   },
-                  items: ['male', 'female']
-                      .map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+                  items:
+                      ['male', 'female'].map<DropdownMenuItem<String>>((
+                        String value,
+                      ) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please select your sex';
@@ -244,18 +248,19 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                     Provider.of<CalculatorModel>(context, listen: false)
                         .activityLevel = value!;
                   },
-                  items: [
-                    'sedentary',
-                    'lightly active',
-                    'moderately active',
-                    'very active',
-                    'extra active'
-                  ].map<DropdownMenuItem<String>>((String value) {
-                    return DropdownMenuItem<String>(
-                      value: value,
-                      child: Text(value),
-                    );
-                  }).toList(),
+                  items:
+                      [
+                        'sedentary',
+                        'lightly active',
+                        'moderately active',
+                        'very active',
+                        'extra active',
+                      ].map<DropdownMenuItem<String>>((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return "Please select an activity level";
@@ -277,8 +282,8 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                       value: 'lose',
                       groupValue: Provider.of<CalculatorModel>(context).goal,
                       onChanged: (value) {
-                        Provider.of<CalculatorModel>(context, listen: false).goal =
-                        value!;
+                        Provider.of<CalculatorModel>(context, listen: false)
+                            .goal = value!;
                       },
                     ),
                     const Text('Lose Weight'),
@@ -286,8 +291,8 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                       value: 'maintain',
                       groupValue: Provider.of<CalculatorModel>(context).goal,
                       onChanged: (value) {
-                        Provider.of<CalculatorModel>(context, listen: false).goal =
-                        value!;
+                        Provider.of<CalculatorModel>(context, listen: false)
+                            .goal = value!;
                       },
                     ),
                     const Text('Maintain Weight'),
@@ -295,8 +300,8 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                       value: 'gain',
                       groupValue: Provider.of<CalculatorModel>(context).goal,
                       onChanged: (value) {
-                        Provider.of<CalculatorModel>(context, listen: false).goal =
-                        value!;
+                        Provider.of<CalculatorModel>(context, listen: false)
+                            .goal = value!;
                       },
                     ),
                     const Text('Gain Weight'),
@@ -306,8 +311,10 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                     Provider.of<CalculatorModel>(context).goal == 'gain') ...[
                   const SizedBox(height: 20),
                   //Weight change input
-                  const Text('Weight Change Rate (lbs/week)',
-                      style: TextStyle(fontSize: 16)),
+                  const Text(
+                    'Weight Change Rate (lbs/week)',
+                    style: TextStyle(fontSize: 16),
+                  ),
                   TextFormField(
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
@@ -324,64 +331,81 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                       if (double.parse(value) <= 0) {
                         return 'Rate must be greater than 0';
                       }
+                      double rate = double.parse(value);
+                      String goal =
+                          Provider.of<CalculatorModel>(
+                            context,
+                            listen: false,
+                          ).goal;
+
+                      if (goal == 'lose' && rate > 2) {
+                        return 'The safe recommended weight loss is up to 2 lbs a week';
+                      }
+                      if (goal == 'gain' && rate > 1) {
+                        return 'The safe recommended weight gain is up to 1 lb. a week';
+                      }
+
                       return null;
                     },
                     decoration: const InputDecoration(
                       //labelText: 'Weight Change Rate',
                       hintText: 'Enter rate in lbs/week',
                     ),
-                  )
+                  ),
                 ],
                 const SizedBox(height: 20),
 
                 // Calculate Button
                 Center(
                   child: ElevatedButton(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) { // Use the form key
-                      Provider.of<CalculatorModel>(context, listen: false)
-                          .calculateMacros();
-                      // Show a dialog with the results
-                      showDialog(
-                        context: context,
-                        builder: (context) {
-                          return AlertDialog(
-                            title: const Text('Calculation Results'),
-                            content: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Calories: ${Provider.of<CalculatorModel>(context).calories.round()}',
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                Text(
-                                  'Protein: ${Provider.of<CalculatorModel>(context).protein.round()}g',
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                Text(
-                                  'Carbs: ${Provider.of<CalculatorModel>(context).carbs.round()}g',
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                Text(
-                                  'Fat: ${Provider.of<CalculatorModel>(context).fat.round()}g',
-                                  style: const TextStyle(fontSize: 18),
+                    onPressed: () {
+                      if (_formKey.currentState!.validate()) {
+                        // Use the form key
+                        Provider.of<CalculatorModel>(
+                          context,
+                          listen: false,
+                        ).calculateMacros();
+                        // Show a dialog with the results
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: const Text('Calculation Results'),
+                              content: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Calories: ${Provider.of<CalculatorModel>(context).calories.round()}',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  Text(
+                                    'Protein: ${Provider.of<CalculatorModel>(context).protein.round()}g',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  Text(
+                                    'Carbs: ${Provider.of<CalculatorModel>(context).carbs.round()}g',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  Text(
+                                    'Fat: ${Provider.of<CalculatorModel>(context).fat.round()}g',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: const Text('OK'),
                                 ),
                               ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('OK'),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  },
-                  child: const Text('Mash Macros'),
-                ),
+                            );
+                          },
+                        );
+                      }
+                    },
+                    child: const Text('Mash Macros'),
+                  ),
                 ),
                 const SizedBox(height: 20),
               ],
@@ -392,4 +416,3 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
     );
   }
 }
-
