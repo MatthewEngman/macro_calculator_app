@@ -2,9 +2,8 @@
 <resources>
     <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
     <style name="LaunchTheme" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/black</item>
-        <item name="android:windowBackground">@drawable/launch_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/launch_background</item>
+        <item name="windowSplashScreenBackground">@drawable/launch_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@null</item>
         <item name="postSplashScreenTheme">@style/NormalTheme</item>
     </style>
 
@@ -18,7 +17,7 @@
     </style>
 
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/transparent</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/launch_background</item>
+        <item name="windowSplashScreenBackground">@drawable/launch_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@null</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style></resources>

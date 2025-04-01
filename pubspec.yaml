@@ -23,7 +23,7 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#000000"  # Dark background to complement the image
-  background_image: assets/images/foodbackground.jpg  # Use the food background
+  background_image: assets/images/foodbackground.png  # Use the food background
   image: assets/images/logo.png  # Keep the logo
   android: true
   ios: true
