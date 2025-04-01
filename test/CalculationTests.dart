@@ -6,7 +6,7 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:macro_calculator/calculator_model.dart'; // Import your model
+import 'package:macro_masher/calculator_model.dart'; // Import your model
 
 void main() {
   group('CalculatorModel Unit Tests', () {

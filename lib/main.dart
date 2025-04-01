@@ -101,7 +101,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
               borderRadius: BorderRadius.circular(15),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(),
                   spreadRadius: 3,
                   blurRadius: 7,
                   offset: const Offset(0, 3),
