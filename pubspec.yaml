@@ -19,7 +19,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.3
 
 flutter_native_splash:
   color: "#000000"  # Dark background to complement the image
@@ -29,6 +29,7 @@ flutter_native_splash:
   ios: true
   android_12:
     image: assets/images/logo.png
+    background_image_android: assets/images/foodbackground.png
     icon_background_color: "#fc0330"
   fullscreen: true
   android_gravity: center
