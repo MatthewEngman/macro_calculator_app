@@ -101,7 +101,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
               borderRadius: BorderRadius.circular(15),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
+                  color: Colors.grey.withValues(),
                   spreadRadius: 3,
                   blurRadius: 7,
                   offset: const Offset(0, 3),
@@ -267,7 +267,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         return null;
                       },
                       decoration: const InputDecoration(
-                        labelText: 'Sex',
+                        //labelText: 'Sex',
                         hintText: 'Select your sex',
                       ),
                     ),
@@ -305,7 +305,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         return null;
                       },
                       decoration: const InputDecoration(
-                        labelText: 'Activity Level',
+                        //labelText: 'Activity Level',
                         hintText: 'Select your activity level',
                       ),
                     ),
