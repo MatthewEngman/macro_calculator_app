@@ -89,7 +89,14 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Macro Masher'), centerTitle: true),
-      body: Padding(
+      body: Container(
+          decoration: BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/foodbackground.jpg'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        constraints: const BoxConstraints.expand(),
         padding: const EdgeInsets.all(20.0),
         child: Center(
           child: Container(
@@ -134,6 +141,9 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         if (double.parse(value) <= 0) {
                           return 'Weight must be greater than 0';
                         }
+                        if (double.parse(value) > 500) {
+                          return 'Weight must be less than 500';
+                      }
                         return null;
                       },
                       decoration: const InputDecoration(
@@ -233,6 +243,9 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         }
                         if (int.parse(value) <= 0) {
                           return 'Age must be greater than 0';
+                        }
+                        if (int.parse(value) > 150) {
+                          return 'Age must be less than 150';
                         }
                         return null;
                       },
