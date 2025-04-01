@@ -267,7 +267,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         return null;
                       },
                       decoration: const InputDecoration(
-                        labelText: 'Sex',
+                        //labelText: 'Sex',
                         hintText: 'Select your sex',
                       ),
                     ),
@@ -305,7 +305,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         return null;
                       },
                       decoration: const InputDecoration(
-                        labelText: 'Activity Level',
+                        //labelText: 'Activity Level',
                         hintText: 'Select your activity level',
                       ),
                     ),
