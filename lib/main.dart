@@ -90,7 +90,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
     return Scaffold(
       appBar: AppBar(title: const Text('Macro Masher'), centerTitle: true),
       body: Container(
-          decoration: BoxDecoration(
+        decoration: BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/images/foodbackground.jpg'),
             fit: BoxFit.cover,
@@ -143,7 +143,7 @@ class MacroCalculatorFormState extends State<MacroCalculatorForm> {
                         }
                         if (double.parse(value) > 500) {
                           return 'Weight must be less than 500';
-                      }
+                        }
                         return null;
                       },
                       decoration: const InputDecoration(
