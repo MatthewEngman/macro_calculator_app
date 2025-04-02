@@ -10,7 +10,6 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Handle the splash screen transition.
-        installSplashScreen()
         super.onCreate(savedInstanceState)
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
