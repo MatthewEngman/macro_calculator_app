@@ -22,15 +22,15 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
 
 flutter_native_splash:
-  color: "#000000"  # Dark background to complement the image
+  color: "#FFFFFF"
   background_image: assets/images/foodbackground.png  # Use the food background
   image: assets/images/logo.png  # Keep the logo
   android: true
   ios: true
   android_12:
+    color: "#FFFFFF"
     image: assets/images/logo.png
-    background_image_android: assets/images/foodbackground.png
-    icon_background_color: "#fc0330"
+    background_image: assets/images/foodbackground.png
   fullscreen: true
   android_gravity: center
   ios_content_mode: center
@@ -42,7 +42,7 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: assets/images/logo.png
-  adaptive_icon_background: "#fc0330" # Same as splash screen color
+  adaptive_icon_background: assets/images/foodbackground.png
   adaptive_icon_foreground: assets/images/logo.png
 
 flutter:
