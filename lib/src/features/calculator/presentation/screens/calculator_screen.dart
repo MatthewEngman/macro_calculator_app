@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/calculator_provider.dart';
 import '../widgets/input_field.dart';
-import '../widgets/result_display.dart';
 
 class CalculatorScreen extends ConsumerStatefulWidget {
   const CalculatorScreen({super.key});
@@ -26,7 +25,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   @override
   Widget build(BuildContext context) {
     final calculatorNotifier = ref.watch(calculatorProvider.notifier);
-    final macroResult = ref.watch(calculatorProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -48,7 +46,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                 children: <Widget>[
                   Card(
                     elevation: 0,
-                    color: colorScheme.surfaceContainerHigh,
+                    color: colorScheme.primaryContainer,
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -57,7 +55,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                           Text(
                             'Basic Information',
                             style: textTheme.titleLarge?.copyWith(
-                              color: colorScheme.onSurface,
+                              color: colorScheme.onPrimaryContainer,
                             ),
                           ),
                           // Weight Input
@@ -363,7 +361,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                           const SizedBox(height: 20),
                           // Calculate Button
                           Center(
-                            child: ElevatedButton(
+                            child: FilledButton.icon(
                               onPressed: () {
                                 if (_formKey.currentState!.validate()) {
                                   // Reset weight change rate if goal is maintain
@@ -381,18 +379,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                   }
                                 }
                               },
-                              child: const Text('Calculate Macros'),
+                              icon: const Icon(Icons.calculate),
+                              label: const Text('Calculate Macros'),
                             ),
                           ),
-                          const SizedBox(height: 20),
-                          // Display the result using the watched state
-                          if (macroResult != null)
-                            // Show result in a dialog or inline
-                            ResultDisplay(
-                              result: macroResult,
-                            ), // Assuming ResultDisplay shows the dialog
-                          // Or:
-                          // Column( children: [ Text(...), ... ] )
                         ],
                       ),
                     ),

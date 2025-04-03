@@ -33,7 +33,7 @@ class ResultScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          '${result.calories.toStringAsFixed(0)}',
+                          result.calories.toStringAsFixed(0),
                           style: textTheme.displayMedium?.copyWith(
                             color: colorScheme.onPrimaryContainer,
                             fontWeight: FontWeight.bold,
