@@ -102,9 +102,10 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             'Height ($heightUnit):',
                             style: const TextStyle(fontSize: 16),
                           ),
+                          const SizedBox(height: 8),
                           if (isMetric)
                             InputField(
-                              label: 'Height (cm):',
+                              label: 'Enter your height in centimeters',
                               hint: 'Enter your height in centimeters',
                               keyboardType: TextInputType.number,
                               onChanged: (value) {
@@ -250,42 +251,37 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             },
                           ),
                           // Activity Level Input (Dropdown)
-                          const Text(
-                            'Activity Level:',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                          DropdownButtonFormField<String>(
-                            value:
-                                calculatorNotifier
-                                    .activityLevel, // Read current value
-                            onChanged: (value) {
-                              if (value != null) {
-                                calculatorNotifier.activityLevel = value;
-                                setState(() {}); // Trigger rebuild
-                              }
-                            },
+                          const SizedBox(height: 20),
+                          DropdownButtonFormField<ActivityLevel>(
+                            value: ActivityLevel.values.firstWhere(
+                              (a) => a.name == calculatorNotifier.activityLevel,
+                              orElse: () => ActivityLevel.moderatelyActive,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Activity Level',
+                            ),
                             items:
-                                [
-                                  'sedentary',
-                                  'lightly active',
-                                  'moderately active',
-                                  'very active',
-                                  'extra active',
-                                ].map<DropdownMenuItem<String>>((String value) {
-                                  return DropdownMenuItem<String>(
-                                    value: value,
-                                    child: Text(value),
+                                ActivityLevel.values.map((level) {
+                                  return DropdownMenuItem(
+                                    value: level,
+                                    child: Text(_getActivityLevelLabel(level)),
                                   );
                                 }).toList(),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return "Please select an activity level";
+                            onChanged: (value) {
+                              if (value != null) {
+                                calculatorNotifier.activityLevel = value.name;
+                                // Also update settings
+                                ref
+                                    .read(settingsProvider.notifier)
+                                    .updateSettings(
+                                      CalculationSettings(
+                                        activityLevel: value,
+                                        goal: settings.goal,
+                                        units: settings.units,
+                                      ),
+                                    );
                               }
-                              return null;
                             },
-                            decoration: const InputDecoration(
-                              hintText: 'Select your activity level',
-                            ),
                           ),
                           // Conditionally show weight change rate input
                           if (calculatorNotifier.goal != 'maintain') ...[
@@ -368,6 +364,21 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         return 'Maintain Weight';
       case Goal.gain:
         return 'Gain Weight';
+    }
+  }
+
+  String _getActivityLevelLabel(ActivityLevel level) {
+    switch (level) {
+      case ActivityLevel.sedentary:
+        return 'Sedentary';
+      case ActivityLevel.lightlyActive:
+        return 'Lightly Active';
+      case ActivityLevel.moderatelyActive:
+        return 'Moderately Active';
+      case ActivityLevel.veryActive:
+        return 'Very Active';
+      case ActivityLevel.extraActive:
+        return 'Extra Active';
     }
   }
 }
