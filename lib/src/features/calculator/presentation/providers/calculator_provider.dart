@@ -8,7 +8,6 @@ import '../../domain/use_cases/calculate_macros_use_case.dart';
 import '../../domain/repositories/calculator_settings_repository.dart';
 import '../../data/repositories/calculator_settings_repository_impl.dart'; // Import implementation
 
-
 // Provider for the initialized Database instance (defined in main.dart)
 final databaseProvider = Provider<Database>((ref) {
   // This will be overridden in main.dart after initialization
@@ -28,17 +27,19 @@ final calculateMacrosUseCaseProvider = Provider<CalculateMacrosUseCase>((ref) {
 
 // Create a provider for the Repository Implementation
 // It now depends on the persistenceServiceProvider
-final calculatorSettingsRepositoryProvider = Provider<CalculatorSettingsRepository>((ref) {
-  final persistenceService = ref.watch(persistenceServiceProvider);
-  return CalculatorSettingsRepositoryImpl(persistenceService);
-});
+final calculatorSettingsRepositoryProvider =
+    Provider<CalculatorSettingsRepository>((ref) {
+      final persistenceService = ref.watch(persistenceServiceProvider);
+      return CalculatorSettingsRepositoryImpl(persistenceService);
+    });
 
 // Create a Notifier to manage the state
 class CalculatorNotifier extends StateNotifier<MacroResult?> {
   final CalculateMacrosUseCase _calculateMacrosUseCase;
   final CalculatorSettingsRepository _settingsRepository;
 
-  CalculatorNotifier(this._calculateMacrosUseCase, this._settingsRepository) : super(null);
+  CalculatorNotifier(this._calculateMacrosUseCase, this._settingsRepository)
+    : super(null);
 
   // Add state variables for the form inputs
   double weight = 0;
@@ -51,7 +52,7 @@ class CalculatorNotifier extends StateNotifier<MacroResult?> {
   double? weightChangeRate;
 
   // Method to calculate macros
-  void calculateMacros() {
+  MacroResult? calculateMacros() {
     final input = CalculationInput(
       weight: weight,
       feet: feet,
@@ -64,6 +65,7 @@ class CalculatorNotifier extends StateNotifier<MacroResult?> {
     );
     final result = _calculateMacrosUseCase.execute(input);
     state = result;
+    return result;
   }
 
   // Methods to save and load goal (loadGoal is now async)
@@ -74,7 +76,8 @@ class CalculatorNotifier extends StateNotifier<MacroResult?> {
   }
 
   Future<void> loadGoal() async {
-    final loadedGoal = await _settingsRepository.getGoal(); // Now returns Future<String?>
+    final loadedGoal =
+        await _settingsRepository.getGoal(); // Now returns Future<String?>
     if (loadedGoal != null) {
       goal = loadedGoal;
       // Important: Need to notify listeners if the state object itself doesn't change
@@ -91,8 +94,14 @@ class CalculatorNotifier extends StateNotifier<MacroResult?> {
 }
 
 // Create a StateNotifierProvider
-final calculatorProvider = StateNotifierProvider<CalculatorNotifier, MacroResult?>((ref) {
-  final calculateMacrosUseCase = ref.watch(calculateMacrosUseCaseProvider);
-  final calculatorSettingsRepository = ref.watch(calculatorSettingsRepositoryProvider);
-  return CalculatorNotifier(calculateMacrosUseCase, calculatorSettingsRepository);
-});
+final calculatorProvider =
+    StateNotifierProvider<CalculatorNotifier, MacroResult?>((ref) {
+      final calculateMacrosUseCase = ref.watch(calculateMacrosUseCaseProvider);
+      final calculatorSettingsRepository = ref.watch(
+        calculatorSettingsRepositoryProvider,
+      );
+      return CalculatorNotifier(
+        calculateMacrosUseCase,
+        calculatorSettingsRepository,
+      );
+    });

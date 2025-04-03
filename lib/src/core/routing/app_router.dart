@@ -1,5 +1,5 @@
 import 'package:go_router/go_router.dart';
-// Correct the import path based on your structure
+import '../../features/calculator/domain/entities/macro_result.dart';
 import '../../features/calculator/presentation/screens/calculator_screen.dart';
 import '../../features/calculator/presentation/screens/result_screen.dart';
 
