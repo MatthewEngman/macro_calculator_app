@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/calculator_provider.dart';
 import '../widgets/input_field.dart';
 import '../widgets/result_display.dart';
@@ -24,11 +25,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch the notifier to rebuild when its mutable fields change
-    // Note: Watching the notifier directly like this can cause rebuilds
-    // even if only internal fields change. Watching specific state via
-    // ref.watch(calculatorProvider.select((p) => p.someState)) is often better.
-    // For simplicity here, we watch the notifier.
     final calculatorNotifier = ref.watch(calculatorProvider.notifier);
     final macroResult = ref.watch(calculatorProvider); // Watch the state (MacroResult?)
 
@@ -328,21 +324,40 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                     onPressed: () {
                       if (_formKey.currentState!.validate()) {
                         // Ensure weightChangeRate is null if goal is maintain before calculating
-                        if(calculatorNotifier.goal == 'maintain'){
-                          calculatorNotifier.weightChangeRate = null;
+                        if (calculatorNotifier.goal == 'maintain') {
+                          if (calculatorNotifier.goal == 'maintain') {
+                            calculatorNotifier.weightChangeRate = null;
+                          }
+                          // Call method on the notifier
+                          final result = ref
+                              .read(calculatorProvider.notifier)
+                              .calculateMacros();
+
+                          if (result != null) {
+                            context.push('/result', extra: result);
+                          } else {
+                            final result =
+                            ref
+                                .read(calculatorProvider.notifier)
+                                .calculateMacros();
+                            if (result != null) {
+                              context.push('/result', extra: result);
+                            } else {}
+                          }
                         }
-                        // Call method on the notifier
-                        ref.read(calculatorProvider.notifier).calculateMacros();
                       }
-                    },
-                    child: const Text('Mash Macros'),
-                  ),
+                      child:
+                      const Text('Mash Macros');
+
+                    }
                 ),
-                const SizedBox(height: 20),
-                // Display the result using the watched state
-                if (macroResult != null)
-                // Show result in a dialog or inline
-                  ResultDisplay(result: macroResult), // Assuming ResultDisplay shows the dialog
+
+
+               const SizedBox(height: 20),
+               // Display the result using the watched state
+                )if (macroResult != null)
+               // Show result in a dialog or inline
+                 ResultDisplay(result: macroResult), // Assuming ResultDisplay shows the dialog
                 // Or:
                 // Column( children: [ Text(...), ... ] )
               ],

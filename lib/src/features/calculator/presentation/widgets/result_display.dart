@@ -41,31 +41,5 @@ class ResultDisplay extends StatelessWidget {
       ),
     );
 
-    // --- OR If you want to keep the Dialog behavior ---
-    // WidgetsBinding.instance.addPostFrameCallback((_) {
-    //   showDialog(
-    //     context: context,
-    //     builder: (context) => AlertDialog(
-    //       title: const Text('Calculation Results'),
-    //       content: Column(
-    //         crossAxisAlignment: CrossAxisAlignment.start,
-    //         mainAxisSize: MainAxisSize.min,
-    //         children: [
-    //           Text('Calories: ${result.calories.round()}', style: const TextStyle(fontSize: 18)),
-    //           Text('Protein: ${result.protein.round()}g', style: const TextStyle(fontSize: 18)),
-    //           Text('Carbs: ${result.carbs.round()}g', style: const TextStyle(fontSize: 18)),
-    //           Text('Fat: ${result.fat.round()}g', style: const TextStyle(fontSize: 18)),
-    //         ],
-    //       ),
-    //       actions: [
-    //         TextButton(
-    //           onPressed: () => Navigator.of(context).pop(),
-    //           child: const Text('OK'),
-    //         ),
-    //       ],
-    //     ),
-    //   );
-    // });
-    // return const SizedBox.shrink(); // Return empty widget if dialog is shown post-frame
   }
 }
