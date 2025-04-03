@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../domain/entities/macro_result.dart';
+import '../widgets/macro_card.dart';
 
 class ResultScreen extends StatelessWidget {
   final MacroResult result;
@@ -54,7 +55,7 @@ class ResultScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: _MacroCard(
+                      child: MacroCard(
                         title: 'Protein',
                         value: '${result.protein.toStringAsFixed(0)}g',
                         colorScheme: colorScheme,
@@ -63,7 +64,7 @@ class ResultScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _MacroCard(
+                      child: MacroCard(
                         title: 'Carbs',
                         value: '${result.carbs.toStringAsFixed(0)}g',
                         colorScheme: colorScheme,
@@ -72,7 +73,7 @@ class ResultScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _MacroCard(
+                      child: MacroCard(
                         title: 'Fat',
                         value: '${result.fat.toStringAsFixed(0)}g',
                         colorScheme: colorScheme,
@@ -90,49 +91,6 @@ class ResultScreen extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MacroCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final ColorScheme colorScheme;
-  final TextTheme textTheme;
-
-  const _MacroCard({
-    required this.title,
-    required this.value,
-    required this.colorScheme,
-    required this.textTheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: textTheme.titleLarge?.copyWith(
-                color: colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: textTheme.bodyMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );
