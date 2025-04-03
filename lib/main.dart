@@ -8,6 +8,7 @@ import 'src/core/persistence/database_helper.dart'; // Import DB Helper
 import 'src/features/calculator/presentation/providers/calculator_provider.dart';
 import 'src/features/profile/data/repositories/profile_repository_impl.dart';
 import 'src/features/profile/presentation/providers/profile_provider.dart';
+import 'src/features/profile/presentation/providers/settings_provider.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized
@@ -26,6 +27,8 @@ void main() async {
         profileRepositoryProvider.overrideWithValue(
           ProfileRepositoryImpl(sharedPreferences),
         ),
+        // Override the SharedPreferences provider with the initialized instance
+        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
       ],
       child: const MyApp(),
     ),
