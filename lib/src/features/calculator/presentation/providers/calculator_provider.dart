@@ -1,14 +1,14 @@
 import 'package:riverpod/riverpod.dart';
-import 'package:sqflite/sqflite.dart'; // Import sqflite if needed here, or rely on core providers
-import '../../../../core/persistence/persistence_service.dart'; // Import core service
-// Import database helper
+import 'package:sqflite/sqflite.dart';
+import '../../../../core/persistence/persistence_service.dart';
+import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../domain/entities/calculation_input.dart';
 import '../../domain/entities/macro_result.dart';
 import '../../domain/use_cases/calculate_macros_use_case.dart';
 import '../../domain/repositories/calculator_settings_repository.dart';
-import '../../data/repositories/calculator_settings_repository_impl.dart'; // Import implementation
+import '../../data/repositories/calculator_settings_repository_impl.dart';
 
-// Provider for the initialized Database instance (defined in main.dart)
+// Provider for the initialized Database instance
 final databaseProvider = Provider<Database>((ref) {
   // This will be overridden in main.dart after initialization
   throw UnimplementedError('Database provider must be overridden');
@@ -20,12 +20,12 @@ final persistenceServiceProvider = Provider<PersistenceService>((ref) {
   return PersistenceService(db);
 });
 
-// Create a provider for the UseCase
+// Provider for the UseCase
 final calculateMacrosUseCaseProvider = Provider<CalculateMacrosUseCase>((ref) {
   return CalculateMacrosUseCase();
 });
 
-// Create a provider for the Repository Implementation
+// Provider for the Repository Implementation
 // It now depends on the persistenceServiceProvider
 final calculatorSettingsRepositoryProvider =
     Provider<CalculatorSettingsRepository>((ref) {
@@ -37,9 +37,13 @@ final calculatorSettingsRepositoryProvider =
 class CalculatorNotifier extends StateNotifier<MacroResult?> {
   final CalculateMacrosUseCase _calculateMacrosUseCase;
   final CalculatorSettingsRepository _settingsRepository;
+  final Ref _ref;
 
-  CalculatorNotifier(this._calculateMacrosUseCase, this._settingsRepository)
-    : super(null);
+  CalculatorNotifier(
+    this._calculateMacrosUseCase,
+    this._settingsRepository,
+    this._ref,
+  ) : super(null);
 
   // Add state variables for the form inputs
   double weight = 0;
@@ -51,18 +55,35 @@ class CalculatorNotifier extends StateNotifier<MacroResult?> {
   String goal = 'maintain';
   double? weightChangeRate;
 
+  // Convert units if needed
+  double _convertWeight(double weight, Units units) {
+    return units == Units.metric
+        ? weight * 2.20462
+        : weight; // Convert kg to lbs if metric
+  }
+
   // Method to calculate macros
   MacroResult? calculateMacros() {
+    // Get current units from settings provider
+    final units = _ref.read(settingsProvider).units;
+
+    // Convert weight to lbs if using metric
+    final weightInLbs = _convertWeight(weight, units);
+
     final input = CalculationInput(
-      weight: weight,
+      weight: weightInLbs,
       feet: feet,
       inches: inches,
       age: age,
       sex: sex,
       activityLevel: activityLevel,
       goal: goal,
-      weightChangeRate: weightChangeRate,
+      weightChangeRate:
+          weightChangeRate != null
+              ? _convertWeight(weightChangeRate!, units)
+              : null,
     );
+
     final result = _calculateMacrosUseCase.execute(input);
     state = result;
     return result;
@@ -103,5 +124,6 @@ final calculatorProvider =
       return CalculatorNotifier(
         calculateMacrosUseCase,
         calculatorSettingsRepository,
+        ref,
       );
     });
