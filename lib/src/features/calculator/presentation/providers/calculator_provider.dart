@@ -1,7 +1,7 @@
 import 'package:riverpod/riverpod.dart';
 import 'package:sqflite/sqflite.dart'; // Import sqflite if needed here, or rely on core providers
 import '../../../../core/persistence/persistence_service.dart'; // Import core service
-import '../../../../core/persistence/database_helper.dart'; // Import database helper
+// Import database helper
 import '../../domain/entities/calculation_input.dart';
 import '../../domain/entities/macro_result.dart';
 import '../../domain/use_cases/calculate_macros_use_case.dart';

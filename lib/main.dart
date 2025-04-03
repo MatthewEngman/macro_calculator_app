@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sqflite/sqflite.dart'; // Import sqflite
+// Import sqflite
 import 'src/core/routing/app_router.dart';
 import 'src/core/persistence/database_helper.dart'; // Import DB Helper
 // Import the provider definition file
