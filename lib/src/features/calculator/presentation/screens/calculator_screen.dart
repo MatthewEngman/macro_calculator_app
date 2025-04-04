@@ -218,6 +218,68 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             },
                           ),
                           const SizedBox(height: 20),
+                          // Sex Selection
+                          DropdownButtonFormField<String>(
+                            value: ref.watch(calculatorProvider.notifier).sex,
+                            decoration: const InputDecoration(
+                              labelText: 'Sex',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'male',
+                                child: Text('Male'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'female',
+                                child: Text('Female'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                calculatorNotifier.sex = value;
+                              }
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select your sex';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          // Activity Level Input (Dropdown)
+                          DropdownButtonFormField<ActivityLevel>(
+                            value: ActivityLevel.values.firstWhere(
+                              (a) => a.name == calculatorNotifier.activityLevel,
+                              orElse: () => ActivityLevel.moderatelyActive,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Activity Level',
+                            ),
+                            items:
+                                ActivityLevel.values.map((level) {
+                                  return DropdownMenuItem(
+                                    value: level,
+                                    child: Text(_getActivityLevelLabel(level)),
+                                  );
+                                }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                calculatorNotifier.activityLevel = value.name;
+                                // Also update settings
+                                ref
+                                    .read(settingsProvider.notifier)
+                                    .updateSettings(
+                                      CalculationSettings(
+                                        activityLevel: value,
+                                        goal: settings.goal,
+                                        units: settings.units,
+                                      ),
+                                    );
+                              }
+                            },
+                          ),
                           // Goal Dropdown
                           DropdownButtonFormField<Goal>(
                             value: Goal.values.firstWhere(
@@ -244,39 +306,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                       CalculationSettings(
                                         activityLevel: settings.activityLevel,
                                         goal: value,
-                                        units: settings.units,
-                                      ),
-                                    );
-                              }
-                            },
-                          ),
-                          // Activity Level Input (Dropdown)
-                          const SizedBox(height: 20),
-                          DropdownButtonFormField<ActivityLevel>(
-                            value: ActivityLevel.values.firstWhere(
-                              (a) => a.name == calculatorNotifier.activityLevel,
-                              orElse: () => ActivityLevel.moderatelyActive,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'Activity Level',
-                            ),
-                            items:
-                                ActivityLevel.values.map((level) {
-                                  return DropdownMenuItem(
-                                    value: level,
-                                    child: Text(_getActivityLevelLabel(level)),
-                                  );
-                                }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                calculatorNotifier.activityLevel = value.name;
-                                // Also update settings
-                                ref
-                                    .read(settingsProvider.notifier)
-                                    .updateSettings(
-                                      CalculationSettings(
-                                        activityLevel: value,
-                                        goal: settings.goal,
                                         units: settings.units,
                                       ),
                                     );
