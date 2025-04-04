@@ -96,7 +96,37 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 16),
+                          // Sex Selection
+                          DropdownButtonFormField<String>(
+                            value: calculatorNotifier.sex,
+                            decoration: const InputDecoration(
+                              labelText: 'Sex',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'male',
+                                child: Text('Male'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'female',
+                                child: Text('Female'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                calculatorNotifier.sex = value;
+                              }
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please select your sex';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
                           // Height Input
                           Text(
                             'Height ($heightUnit):',
@@ -218,36 +248,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                             },
                           ),
                           const SizedBox(height: 20),
-                          // Sex Selection
-                          DropdownButtonFormField<String>(
-                            value: ref.watch(calculatorProvider.notifier).sex,
-                            decoration: const InputDecoration(
-                              labelText: 'Sex',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'male',
-                                child: Text('Male'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'female',
-                                child: Text('Female'),
-                              ),
-                            ],
-                            onChanged: (value) {
-                              if (value != null) {
-                                calculatorNotifier.sex = value;
-                              }
-                            },
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please select your sex';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
                           // Activity Level Input (Dropdown)
                           DropdownButtonFormField<ActivityLevel>(
                             value: ActivityLevel.values.firstWhere(
