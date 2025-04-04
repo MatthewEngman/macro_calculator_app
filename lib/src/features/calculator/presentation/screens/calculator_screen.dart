@@ -252,18 +252,22 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                           DropdownButtonFormField<ActivityLevel>(
                             value: ActivityLevel.values.firstWhere(
                               (a) => a.name == calculatorNotifier.activityLevel,
-                              orElse: () => ActivityLevel.moderatelyActive,
+                              orElse: () => ActivityLevel.sedentary,
                             ),
                             decoration: const InputDecoration(
                               labelText: 'Activity Level',
                             ),
                             items:
-                                ActivityLevel.values.map((level) {
-                                  return DropdownMenuItem(
-                                    value: level,
-                                    child: Text(_getActivityLevelLabel(level)),
-                                  );
-                                }).toList(),
+                                ActivityLevel.values
+                                    .map(
+                                      (level) => DropdownMenuItem(
+                                        value: level,
+                                        child: Text(
+                                          _getActivityLevelLabel(level),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
                             onChanged: (value) {
                               if (value != null) {
                                 calculatorNotifier.activityLevel = value.name;
@@ -280,6 +284,7 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                               }
                             },
                           ),
+                          const SizedBox(height: 24),
                           // Goal Dropdown
                           DropdownButtonFormField<Goal>(
                             value: Goal.values.firstWhere(
