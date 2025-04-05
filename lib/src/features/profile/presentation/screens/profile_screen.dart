@@ -10,6 +10,7 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return DefaultTabController(
       length: 2,
@@ -18,8 +19,12 @@ class ProfileScreen extends ConsumerWidget {
           title: const Text('Profile'),
           centerTitle: true,
           backgroundColor: colorScheme.surfaceContainerHighest,
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            labelColor: colorScheme.onSurface,
+            unselectedLabelColor: colorScheme.onSurfaceVariant,
+            indicatorColor: colorScheme.primary,
+            dividerColor: Colors.transparent,
+            tabs: const [
               Tab(icon: Icon(Icons.history), text: 'Saved Results'),
               Tab(icon: Icon(Icons.settings), text: 'Calculation Settings'),
             ],
@@ -38,14 +43,36 @@ class _SavedResultsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final macros = ref.watch(profileProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return macros.when(
       data: (data) {
         if (data.isEmpty) {
           return Center(
-            child: Text(
-              'No saved results yet',
-              style: Theme.of(context).textTheme.bodyLarge,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.history,
+                  size: 64,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No saved results yet',
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your saved macro calculations will appear here',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           );
         }
@@ -56,9 +83,24 @@ class _SavedResultsTab extends ConsumerWidget {
             final macro = data[index];
             return Dismissible(
               key: Key(macro.id ?? ''),
+              background: Container(
+                color: colorScheme.errorContainer,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 16),
+                child: Icon(Icons.delete, color: colorScheme.onErrorContainer),
+              ),
+              direction: DismissDirection.endToStart,
               onDismissed: (_) {
                 if (macro.id != null) {
                   ref.read(profileProvider.notifier).deleteMacro(macro.id!);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Result deleted'),
+                      backgroundColor: colorScheme.secondaryContainer,
+                      showCloseIcon: true,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 }
               },
               child: Padding(
@@ -70,7 +112,30 @@ class _SavedResultsTab extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: Text('Error: $error')),
+      error:
+          (error, stack) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: colorScheme.error),
+                const SizedBox(height: 16),
+                Text(
+                  'Error loading saved results',
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  error.toString(),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
     );
   }
 }
