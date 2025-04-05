@@ -8,25 +8,35 @@ class CalculationInputs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         Card(
+          elevation: 0,
+          color: colorScheme.primaryContainer,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Default Calculation Settings',
-                  style: Theme.of(context).textTheme.titleLarge,
+                  'Default Settings',
+                  style: textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onPrimaryContainer,
+                  ),
                 ),
                 const SizedBox(height: 16),
+                // Activity Level
                 DropdownButtonFormField<ActivityLevel>(
                   value: settings.activityLevel,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Activity Level',
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: colorScheme.surface,
                   ),
                   items:
                       ActivityLevel.values.map((level) {
@@ -46,13 +56,27 @@ class CalculationInputs extends ConsumerWidget {
                               units: settings.units,
                             ),
                           );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Activity level updated'),
+                          backgroundColor: colorScheme.secondaryContainer,
+                          behavior: SnackBarBehavior.floating,
+                          showCloseIcon: true,
+                        ),
+                      );
                     }
                   },
                 ),
                 const SizedBox(height: 16),
+                // Goal
                 DropdownButtonFormField<Goal>(
                   value: settings.goal,
-                  decoration: const InputDecoration(labelText: 'Goal'),
+                  decoration: InputDecoration(
+                    labelText: 'Goal',
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
                   items:
                       Goal.values.map((goal) {
                         return DropdownMenuItem(
@@ -71,13 +95,27 @@ class CalculationInputs extends ConsumerWidget {
                               units: settings.units,
                             ),
                           );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Goal updated'),
+                          backgroundColor: colorScheme.secondaryContainer,
+                          behavior: SnackBarBehavior.floating,
+                          showCloseIcon: true,
+                        ),
+                      );
                     }
                   },
                 ),
                 const SizedBox(height: 16),
+                // Units
                 DropdownButtonFormField<Units>(
                   value: settings.units,
-                  decoration: const InputDecoration(labelText: 'Units'),
+                  decoration: InputDecoration(
+                    labelText: 'Units',
+                    border: const OutlineInputBorder(),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
                   items:
                       Units.values.map((unit) {
                         return DropdownMenuItem(
@@ -96,6 +134,14 @@ class CalculationInputs extends ConsumerWidget {
                               units: value,
                             ),
                           );
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Units updated'),
+                          backgroundColor: colorScheme.secondaryContainer,
+                          behavior: SnackBarBehavior.floating,
+                          showCloseIcon: true,
+                        ),
+                      );
                     }
                   },
                 ),

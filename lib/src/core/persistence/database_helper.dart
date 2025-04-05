@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import '../../features/meal_plan/data/meal_plan_db.dart';
 
 class DatabaseHelper {
   static const _databaseName = "app_database.db";
@@ -40,5 +41,8 @@ class DatabaseHelper {
             $columnValue TEXT NOT NULL
           )
           ''');
+
+    // Create meal_plans table
+    await MealPlanDB.createTable(db);
   }
 }

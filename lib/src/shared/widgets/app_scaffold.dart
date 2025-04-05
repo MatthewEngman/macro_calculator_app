@@ -23,6 +23,10 @@ class AppScaffold extends StatelessWidget {
             icon: Icon(Icons.calculate),
             label: 'Calculator',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.restaurant_menu),
+            label: 'Meal Plans',
+          ),
           NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
@@ -30,7 +34,8 @@ class AppScaffold extends StatelessWidget {
   }
 
   int _calculateSelectedIndex(String currentPath) {
-    if (currentPath.startsWith('/profile')) return 1;
+    if (currentPath.startsWith('/meal-plans')) return 1;
+    if (currentPath.startsWith('/profile')) return 2;
     return 0;
   }
 
@@ -40,6 +45,9 @@ class AppScaffold extends StatelessWidget {
         context.go('/');
         break;
       case 1:
+        context.go('/meal-plans');
+        break;
+      case 2:
         context.go('/profile');
         break;
     }

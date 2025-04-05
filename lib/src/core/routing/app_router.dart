@@ -3,6 +3,10 @@ import '../../features/calculator/domain/entities/macro_result.dart';
 import '../../features/calculator/presentation/screens/calculator_screen.dart';
 import '../../features/calculator/presentation/screens/result_screen.dart';
 import '../../features/profile/presentation/screens/profile_screen.dart';
+import '../../features/meal_plan/presentation/screens/meal_plan_generator_screen.dart';
+import '../../features/meal_plan/presentation/screens/meal_plan_history_screen.dart';
+import '../../features/meal_plan/presentation/screens/meal_plan_result_screen.dart';
+import '../../features/meal_plan/models/meal_plan.dart';
 import '../../shared/widgets/app_scaffold.dart';
 
 final appRouter = GoRouter(
@@ -26,6 +30,22 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/profile',
           builder: (context, state) => const ProfileScreen(),
+        ),
+        // Meal Plan Routes
+        GoRoute(
+          path: '/meal-plans',
+          builder: (context, state) => const MealPlanHistoryScreen(),
+        ),
+        GoRoute(
+          path: '/meal-plans/generate',
+          builder: (context, state) => const MealPlanGeneratorScreen(),
+        ),
+        GoRoute(
+          path: '/meal-plans/result',
+          builder: (context, state) {
+            final mealPlan = state.extra as MealPlan;
+            return MealPlanResultScreen(mealPlan: mealPlan);
+          },
         ),
       ],
     ),

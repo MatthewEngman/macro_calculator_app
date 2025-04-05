@@ -15,7 +15,7 @@ class SavedMacroCard extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      color: colorScheme.surfaceContainerHigh,
+      color: colorScheme.secondaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -25,7 +25,7 @@ class SavedMacroCard extends StatelessWidget {
               Text(
                 dateFormat.format(macro.timestamp!),
                 style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+                  color: colorScheme.onSecondaryContainer,
                 ),
               ),
             const SizedBox(height: 8),
@@ -38,7 +38,7 @@ class SavedMacroCard extends StatelessWidget {
                       Text(
                         '${macro.calories.toStringAsFixed(0)} cal',
                         style: textTheme.titleLarge?.copyWith(
-                          color: colorScheme.onSurface,
+                          color: colorScheme.onSecondaryContainer,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -46,7 +46,7 @@ class SavedMacroCard extends StatelessWidget {
                       Text(
                         'Daily Calories',
                         style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          color: colorScheme.onSecondaryContainer,
                         ),
                       ),
                     ],
@@ -57,7 +57,7 @@ class SavedMacroCard extends StatelessWidget {
                   'C: ${macro.carbs.toStringAsFixed(0)}g  '
                   'F: ${macro.fat.toStringAsFixed(0)}g',
                   style: textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
+                    color: colorScheme.onSecondaryContainer,
                   ),
                 ),
               ],
