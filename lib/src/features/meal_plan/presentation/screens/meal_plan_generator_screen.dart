@@ -24,6 +24,8 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
   String _selectedDiet = 'balanced';
   String _selectedGoal = 'maintenance';
   bool _isLoading = false;
+  bool _isApiAvailable = true; // Track API availability
+  bool _isCheckingApi = true; // Track if we're checking API status
 
   final List<String> _dietTypes = [
     'balanced',
@@ -35,6 +37,33 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
   ];
 
   final List<String> _goals = ['weight-loss', 'maintenance', 'muscle-gain'];
+
+  @override
+  void initState() {
+    super.initState();
+    _checkApiAvailability();
+  }
+
+  // Check if the API is available
+  Future<void> _checkApiAvailability() async {
+    setState(() => _isCheckingApi = true);
+    try {
+      final isAvailable = await _mealPlanService.isApiAvailable();
+      if (mounted) {
+        setState(() {
+          _isApiAvailable = isAvailable;
+          _isCheckingApi = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isApiAvailable = false;
+          _isCheckingApi = false;
+        });
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -114,6 +143,48 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
+            // API Unavailable Warning
+            if (!_isApiAvailable && !_isCheckingApi)
+              Card(
+                elevation: 0,
+                color: colorScheme.errorContainer,
+                margin: const EdgeInsets.only(bottom: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.cloud_off, color: colorScheme.error),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Service Unavailable',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Meal plan generation is currently unavailable. You can still view your saved meal plans.',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.refresh, color: colorScheme.error),
+                        onPressed: _checkApiAvailability,
+                        tooltip: 'Try again',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             Card(
               elevation: 0,
               color: colorScheme.primaryContainer,
@@ -325,7 +396,10 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: _isLoading ? null : _generateMealPlan,
+              onPressed:
+                  (_isLoading || !_isApiAvailable || _isCheckingApi)
+                      ? null
+                      : _generateMealPlan,
               icon:
                   _isLoading
                       ? const SizedBox(
@@ -333,9 +407,32 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
                         height: 24,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
+                      : _isCheckingApi
+                      ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                       : const Icon(Icons.restaurant_menu),
-              label: Text(_isLoading ? 'Generating...' : 'Generate Meal Plan'),
+              label: Text(
+                _isLoading
+                    ? 'Generating...'
+                    : _isCheckingApi
+                    ? 'Checking service...'
+                    : 'Generate Meal Plan',
+              ),
             ),
+            if (!_isApiAvailable && !_isCheckingApi)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Center(
+                  child: TextButton.icon(
+                    onPressed: () => context.go('/meal-plans/history'),
+                    icon: const Icon(Icons.history),
+                    label: const Text('View Saved Meal Plans'),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
