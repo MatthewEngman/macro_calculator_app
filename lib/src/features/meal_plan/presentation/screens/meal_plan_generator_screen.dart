@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../services/meal_plan_service.dart';
 import '../../data/meal_plan_db.dart';
+import '../../../../features/profile/presentation/providers/profile_provider.dart';
 
-class MealPlanGeneratorScreen extends StatefulWidget {
+class MealPlanGeneratorScreen extends ConsumerStatefulWidget {
   const MealPlanGeneratorScreen({super.key});
 
   @override
-  State<MealPlanGeneratorScreen> createState() =>
+  ConsumerState<MealPlanGeneratorScreen> createState() =>
       _MealPlanGeneratorScreenState();
 }
 
-class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
+class _MealPlanGeneratorScreenState
+    extends ConsumerState<MealPlanGeneratorScreen> {
   final _formKey = GlobalKey<FormState>();
   final _mealPlanService = MealPlanService();
   final _caloriesController = TextEditingController();
@@ -26,6 +29,7 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
   bool _isLoading = false;
   bool _isApiAvailable = true; // Track API availability
   bool _isCheckingApi = true; // Track if we're checking API status
+  bool _isLoadingDefaultMacros = true; // Track if we're loading default macros
 
   final List<String> _dietTypes = [
     'balanced',
@@ -42,6 +46,7 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
   void initState() {
     super.initState();
     _checkApiAvailability();
+    _loadDefaultMacros();
   }
 
   // Check if the API is available
@@ -61,6 +66,45 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
           _isApiAvailable = false;
           _isCheckingApi = false;
         });
+      }
+    }
+  }
+
+  // Load default macros if available
+  Future<void> _loadDefaultMacros() async {
+    setState(() => _isLoadingDefaultMacros = true);
+    try {
+      // Get the default macro from the profile repository
+      final profileRepository = ref.read(profileRepositoryProvider);
+      final defaultMacro = await profileRepository.getDefaultMacro();
+
+      // If default macro exists, prefill the form fields
+      if (defaultMacro != null && mounted) {
+        setState(() {
+          _caloriesController.text = defaultMacro.calories.round().toString();
+          _proteinController.text = defaultMacro.protein.round().toString();
+          _carbsController.text = defaultMacro.carbs.round().toString();
+          _fatController.text = defaultMacro.fat.round().toString();
+
+          // Map goal from default macro to meal plan goal
+          switch (defaultMacro.id?.split('_').lastOrNull) {
+            case 'lose':
+              _selectedGoal = 'weight-loss';
+              break;
+            case 'gain':
+              _selectedGoal = 'muscle-gain';
+              break;
+            default:
+              _selectedGoal = 'maintenance';
+          }
+        });
+      }
+    } catch (e) {
+      // If there's an error, just continue without prefilling
+      debugPrint('Error loading default macros: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingDefaultMacros = false);
       }
     }
   }
@@ -397,7 +441,10 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed:
-                  (_isLoading || !_isApiAvailable || _isCheckingApi)
+                  (_isLoading ||
+                          !_isApiAvailable ||
+                          _isCheckingApi ||
+                          _isLoadingDefaultMacros)
                       ? null
                       : _generateMealPlan,
               icon:
@@ -413,12 +460,20 @@ class _MealPlanGeneratorScreenState extends State<MealPlanGeneratorScreen> {
                         height: 24,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
+                      : _isLoadingDefaultMacros
+                      ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                       : const Icon(Icons.restaurant_menu),
               label: Text(
                 _isLoading
                     ? 'Generating...'
                     : _isCheckingApi
                     ? 'Checking service...'
+                    : _isLoadingDefaultMacros
+                    ? 'Loading default macros...'
                     : 'Generate Meal Plan',
               ),
             ),
