@@ -4,4 +4,6 @@ abstract class ProfileRepository {
   Future<List<MacroResult>> getSavedMacros();
   Future<void> saveMacro(MacroResult result);
   Future<void> deleteMacro(String id);
+  Future<void> setDefaultMacro(String id);
+  Future<MacroResult?> getDefaultMacro();
 }

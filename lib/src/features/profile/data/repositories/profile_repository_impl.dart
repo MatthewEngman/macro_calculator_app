@@ -26,6 +26,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
             carbs: json['carbs'],
             fat: json['fat'],
             timestamp: DateTime.parse(json['timestamp']),
+            isDefault: json['isDefault'] ?? false,
           ),
         )
         .toList();
@@ -50,6 +51,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
               'carbs': r.carbs,
               'fat': r.fat,
               'timestamp': r.timestamp?.toIso8601String(),
+              'isDefault': r.isDefault,
             },
           )
           .toList(),
@@ -61,8 +63,18 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<void> deleteMacro(String id) async {
     final List<MacroResult> current = await getSavedMacros();
-    current.removeWhere((r) => r.id == id);
 
+    // Find the macro to delete
+    final macroToDeleteIndex = current.indexWhere((r) => r.id == id);
+
+    // If macro not found or is default, don't delete
+    if (macroToDeleteIndex == -1) return;
+    if (current[macroToDeleteIndex].isDefault) return;
+
+    // Remove the macro
+    current.removeAt(macroToDeleteIndex);
+
+    // Save the updated list
     final String data = json.encode(
       current
           .map(
@@ -73,11 +85,52 @@ class ProfileRepositoryImpl implements ProfileRepository {
               'carbs': r.carbs,
               'fat': r.fat,
               'timestamp': r.timestamp?.toIso8601String(),
+              'isDefault': r.isDefault,
             },
           )
           .toList(),
     );
 
     await _prefs.setString(_key, data);
+  }
+
+  @override
+  Future<void> setDefaultMacro(String id) async {
+    final List<MacroResult> current = await getSavedMacros();
+
+    // Update all macros: set isDefault to false for all except the one with matching id
+    final updated =
+        current.map((macro) {
+          return macro.copyWith(isDefault: macro.id == id);
+        }).toList();
+
+    final String data = json.encode(
+      updated
+          .map(
+            (r) => {
+              'id': r.id,
+              'calories': r.calories,
+              'protein': r.protein,
+              'carbs': r.carbs,
+              'fat': r.fat,
+              'timestamp': r.timestamp?.toIso8601String(),
+              'isDefault': r.isDefault,
+            },
+          )
+          .toList(),
+    );
+
+    await _prefs.setString(_key, data);
+  }
+
+  @override
+  Future<MacroResult?> getDefaultMacro() async {
+    final List<MacroResult> macros = await getSavedMacros();
+    try {
+      return macros.firstWhere((macro) => macro.isDefault);
+    } catch (e) {
+      // No default macro found
+      return null;
+    }
   }
 }

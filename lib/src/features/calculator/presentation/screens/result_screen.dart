@@ -113,8 +113,14 @@ class ResultScreen extends ConsumerWidget {
                         onPressed: () {
                           ref.read(profileProvider.notifier).saveMacro(result);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Results saved successfully'),
+                            SnackBar(
+                              content: Text(
+                                'Results saved successfully',
+                                style: TextStyle(
+                                  color: colorScheme.onSecondaryContainer,
+                                ),
+                              ),
+                              backgroundColor: colorScheme.secondaryContainer,
                               behavior: SnackBarBehavior.floating,
                             ),
                           );

@@ -5,6 +5,7 @@ class MacroResult {
   final double carbs;
   final double fat;
   final DateTime? timestamp;
+  final bool isDefault;
 
   MacroResult({
     this.id,
@@ -13,6 +14,7 @@ class MacroResult {
     required this.carbs,
     required this.fat,
     this.timestamp,
+    this.isDefault = false,
   });
 
   MacroResult copyWith({
@@ -22,6 +24,7 @@ class MacroResult {
     double? carbs,
     double? fat,
     DateTime? timestamp,
+    bool? isDefault,
   }) {
     return MacroResult(
       id: id ?? this.id,
@@ -30,6 +33,7 @@ class MacroResult {
       carbs: carbs ?? this.carbs,
       fat: fat ?? this.fat,
       timestamp: timestamp ?? this.timestamp,
+      isDefault: isDefault ?? this.isDefault,
     );
   }
 }
