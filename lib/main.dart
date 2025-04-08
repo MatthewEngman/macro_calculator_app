@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
+          seedColor: const Color(0xFF0F82C3),
           brightness: Brightness.light,
         ),
         // Typography using M3 type system
@@ -99,7 +99,7 @@ class MyApp extends StatelessWidget {
       darkTheme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.indigo,
+          seedColor: const Color.fromARGB(255, 15, 130, 195),
           brightness: Brightness.dark,
         ),
         // Typography using M3 type system
