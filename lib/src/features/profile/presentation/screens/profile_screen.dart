@@ -80,6 +80,7 @@ class _SavedResultsTab extends ConsumerWidget {
           itemCount: data.length,
           itemBuilder: (context, index) {
             final macro = data[index];
+
             return Dismissible(
               key: Key(macro.id ?? ''),
               background: Container(
@@ -88,13 +89,21 @@ class _SavedResultsTab extends ConsumerWidget {
                 padding: const EdgeInsets.only(right: 16),
                 child: Icon(Icons.delete, color: colorScheme.onErrorContainer),
               ),
-              direction: DismissDirection.endToStart,
-              onDismissed: (_) {
-                if (macro.id != null) {
+              direction:
+                  macro.isDefault
+                      ? DismissDirection.none
+                      : DismissDirection.endToStart,
+              onDismissed: (direction) {
+                if (macro.id != null && !macro.isDefault) {
                   ref.read(profileProvider.notifier).deleteMacro(macro.id!);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: const Text('Result deleted'),
+                      content: Text(
+                        'Result deleted',
+                        style: TextStyle(
+                          color: colorScheme.onSecondaryContainer,
+                        ),
+                      ),
                       backgroundColor: colorScheme.secondaryContainer,
                       showCloseIcon: true,
                       behavior: SnackBarBehavior.floating,
