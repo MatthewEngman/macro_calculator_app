@@ -7,6 +7,7 @@ import '../../features/meal_plan/presentation/screens/meal_plan_generator_screen
 import '../../features/meal_plan/presentation/screens/meal_plan_history_screen.dart';
 import '../../features/meal_plan/presentation/screens/meal_plan_result_screen.dart';
 import '../../features/meal_plan/models/meal_plan.dart';
+import '../../features/profile/domain/entities/user_info.dart';
 import '../../shared/widgets/app_scaffold.dart';
 
 final appRouter = GoRouter(
@@ -18,7 +19,10 @@ final appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/',
-          builder: (context, state) => const CalculatorScreen(),
+          builder: (context, state) {
+            final userInfo = state.extra as UserInfo?;
+            return CalculatorScreen(userInfo: userInfo);
+          },
         ),
         GoRoute(
           path: '/result',

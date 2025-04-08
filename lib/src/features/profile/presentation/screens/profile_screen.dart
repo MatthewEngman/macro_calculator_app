@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/saved_macro_card.dart';
-import '../widgets/calculation_inputs.dart';
+import '../widgets/user_info_tab.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -25,14 +25,12 @@ class ProfileScreen extends ConsumerWidget {
             dividerColor: Colors.transparent,
             tabs: const [
               Tab(icon: Icon(Icons.history), text: 'Saved Results'),
-              Tab(icon: Icon(Icons.settings), text: 'Calculation Settings'),
+              Tab(icon: Icon(Icons.person), text: 'Profiles'),
             ],
           ),
         ),
         backgroundColor: colorScheme.surface,
-        body: TabBarView(
-          children: [_SavedResultsTab(), const CalculationInputs()],
-        ),
+        body: TabBarView(children: [_SavedResultsTab(), const UserInfoTab()]),
       ),
     );
   }

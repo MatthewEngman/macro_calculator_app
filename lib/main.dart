@@ -1,34 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// Import sqflite
+import 'package:sqflite/sqflite.dart';
 import 'src/core/routing/app_router.dart';
-import 'src/core/persistence/database_helper.dart'; // Import DB Helper
+import 'src/core/persistence/database_helper.dart';
 // Import the provider definition file
-import 'src/features/calculator/presentation/providers/calculator_provider.dart';
-import 'src/features/profile/data/repositories/profile_repository_impl.dart';
-import 'src/features/profile/presentation/providers/profile_provider.dart';
 import 'src/features/profile/presentation/providers/settings_provider.dart';
+import 'src/features/profile/presentation/providers/user_info_provider.dart'
+    as user_info;
+import 'src/features/calculator/presentation/providers/calculator_provider.dart';
+import 'src/features/profile/presentation/providers/profile_provider.dart';
+import 'src/features/profile/data/repositories/profile_repository_impl.dart';
 
 void main() async {
-  // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize the database and SharedPreferences
-  final database = await DatabaseHelper.instance.database;
-  final sharedPreferences = await SharedPreferences.getInstance();
+  // Initialize SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+
+  // Initialize SQLite database
+  final Database database = await DatabaseHelper.instance.database;
 
   runApp(
     ProviderScope(
       overrides: [
-        // Override the Database provider with the initialized instance
+        // Override the SharedPreferences provider with the instance
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        user_info.sharedPreferencesProvider.overrideWithValue(prefs),
+        // Override the database provider with the initialized database
         databaseProvider.overrideWithValue(database),
-        // Override the ProfileRepository provider with the initialized instance
+        // Override the profile repository provider
         profileRepositoryProvider.overrideWithValue(
-          ProfileRepositoryImpl(sharedPreferences),
+          ProfileRepositoryImpl(prefs),
         ),
-        // Override the SharedPreferences provider with the initialized instance
-        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
       ],
       child: const MyApp(),
     ),
