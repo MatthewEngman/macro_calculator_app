@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/meal_plan.dart';
 import '../../data/meal_plan_db.dart';
 import 'package:go_router/go_router.dart';
+import '../../services/meal_plan_service.dart';
 
 class MealPlanHistoryScreen extends StatefulWidget {
   const MealPlanHistoryScreen({super.key});
@@ -13,17 +14,38 @@ class MealPlanHistoryScreen extends StatefulWidget {
 
 class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
   late Future<List<MealPlan>> _mealPlansFuture;
+  bool _isApiAvailable = true;
 
   @override
   void initState() {
     super.initState();
     _mealPlansFuture = MealPlanDB.getAllPlans();
+    _checkApiAvailability();
+  }
+
+  Future<void> _checkApiAvailability() async {
+    try {
+      final mealPlanService = MealPlanService();
+      final isAvailable = await mealPlanService.isApiAvailable();
+      if (mounted) {
+        setState(() {
+          _isApiAvailable = isAvailable;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isApiAvailable = false;
+        });
+      }
+    }
   }
 
   void _refreshMealPlans() {
     setState(() {
       _mealPlansFuture = MealPlanDB.getAllPlans();
     });
+    _checkApiAvailability();
   }
 
   @override
@@ -39,81 +61,129 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.go('/meal-plans/generate'),
+            onPressed:
+                _isApiAvailable
+                    ? () => context.go('/meal-plans/generate')
+                    : null,
+            tooltip:
+                _isApiAvailable
+                    ? 'Generate New Meal Plan'
+                    : 'Service Unavailable',
           ),
         ],
       ),
       backgroundColor: colorScheme.surface,
-      body: FutureBuilder<List<MealPlan>>(
-        future: _mealPlansFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: Column(
+        children: [
+          // API Unavailable Warning
+          if (!_isApiAvailable)
+            Container(
+              width: double.infinity,
+              color: colorScheme.errorContainer,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error: ${snapshot.error}',
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.error,
+                  Icon(Icons.cloud_off, size: 18, color: colorScheme.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Meal plan generation is currently unavailable',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _checkApiAvailability,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Retry',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                      ),
                     ),
                   ),
                 ],
               ),
-            );
-          }
+            ),
+          Expanded(
+            child: FutureBuilder<List<MealPlan>>(
+              future: _mealPlansFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          final mealPlans = snapshot.data ?? [];
+                // Handle error by showing empty state instead of error
+                final mealPlans = snapshot.data ?? [];
 
-          if (mealPlans.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.no_meals, size: 48, color: colorScheme.outline),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No meal plans yet',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurface,
+                if (mealPlans.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.no_meals,
+                          size: 48,
+                          color: colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No meal plans yet',
+                          style: textTheme.titleMedium?.copyWith(
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed:
+                              _isApiAvailable
+                                  ? () => context.go('/meal-plans/generate')
+                                  : null,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create Your First Meal Plan'),
+                        ),
+                        if (!_isApiAvailable)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Service currently unavailable',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.error,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => context.go('/meal-plans/generate'),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Your First Meal Plan'),
-                  ),
-                ],
-              ),
-            );
-          }
+                  );
+                }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              _refreshMealPlans();
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: mealPlans.length,
-              itemBuilder: (context, index) {
-                final plan = mealPlans[index];
-                return _MealPlanHistoryCard(
-                  mealPlan: plan,
-                  onTap: () {
-                    context.go('/meal-plans/result', extra: plan);
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    _refreshMealPlans();
                   },
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: mealPlans.length,
+                    itemBuilder: (context, index) {
+                      final plan = mealPlans[index];
+                      return _MealPlanHistoryCard(
+                        mealPlan: plan,
+                        onTap: () {
+                          context.go('/meal-plans/result', extra: plan);
+                        },
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
