@@ -265,6 +265,30 @@ class UserInfoCard extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                InkWell(
+                  onTap: () {
+                    _showCalculationInfoDialog(context);
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'How are macros calculated?',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             actions: [
@@ -507,6 +531,101 @@ class UserInfoCard extends ConsumerWidget {
               ),
             ],
           ),
+    );
+  }
+
+  void _showCalculationInfoDialog(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Center(
+              child: Text(
+                'Macro Calculation Method',
+                style: textTheme.titleLarge?.copyWith(
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInfoSection(
+                    context,
+                    'Basal Metabolic Rate (BMR)',
+                    'We calculate your BMR using the Harris-Benedict equation:\n\n'
+                        '• Male: 66 + (6.23 × weight in lbs) + (12.7 × height in inches) - (6.8 × age)\n'
+                        '• Female: 655 + (4.35 × weight in lbs) + (4.7 × height in inches) - (4.7 × age)',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoSection(
+                    context,
+                    'Activity Multiplier',
+                    'Your BMR is multiplied by an activity factor:\n\n'
+                        '• Sedentary: 1.2\n'
+                        '• Lightly Active: 1.375\n'
+                        '• Moderately Active: 1.55\n'
+                        '• Very Active: 1.725\n'
+                        '• Extra Active: 1.9',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoSection(
+                    context,
+                    'Target Calories',
+                    'Based on your goal:\n\n'
+                        '• Maintain: Maintenance calories\n'
+                        '• Lose: Maintenance - (weight change rate × 500)\n'
+                        '• Gain: Maintenance + (weight change rate × 500)',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoSection(
+                    context,
+                    'Macronutrient Breakdown',
+                    '• Protein: 1g per pound of body weight\n'
+                        '• Fat: 25% of total calories (9 calories per gram)\n'
+                        '• Carbs: Remaining calories (4 calories per gram)',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Close',
+                  style: TextStyle(color: colorScheme.primary),
+                ),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildInfoSection(BuildContext context, String title, String content) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleMedium?.copyWith(
+            color: colorScheme.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          content,
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+        ),
+      ],
     );
   }
 
