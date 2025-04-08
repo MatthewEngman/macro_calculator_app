@@ -44,47 +44,112 @@ class MyApp extends StatelessWidget {
       routerConfig: appRouter, // Use the router
       title: 'Macro Masher',
       theme: ThemeData(
-        primarySwatch: Colors.indigo,
-        fontFamily: 'Roboto',
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.light,
+        ),
+        // Typography using M3 type system
+        textTheme: TextTheme(
+          displayLarge: const TextStyle(fontWeight: FontWeight.bold),
+          bodyLarge: const TextStyle(fontSize: 16),
+        ),
+        // Input decoration theme that uses ColorScheme colors
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
           focusedBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Colors.indigo, width: 2.0),
+            borderSide: BorderSide(width: 2.0),
             borderRadius: BorderRadius.circular(10.0),
           ),
           errorBorder: OutlineInputBorder(
-            borderSide: const BorderSide(color: Colors.red, width: 2.0),
+            borderSide: BorderSide(width: 2.0),
             borderRadius: BorderRadius.circular(10.0),
           ),
-          labelStyle: const TextStyle(color: Colors.grey),
           floatingLabelBehavior: FloatingLabelBehavior.always,
           contentPadding: const EdgeInsets.symmetric(
             vertical: 20.0,
             horizontal: 12.0,
           ),
         ),
+        // Button theme that uses ColorScheme colors automatically
         elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 30),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10.0),
+          style: ButtonStyle(
+            padding: WidgetStateProperty.all(
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 30),
             ),
-            backgroundColor: Colors.indigo,
-            foregroundColor: Colors.white,
-            textStyle: const TextStyle(fontSize: 18),
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+            ),
+            textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 18)),
           ),
         ),
+        // Radio theme that uses ColorScheme colors
         radioTheme: RadioThemeData(
-          fillColor: WidgetStateProperty.all(
-            // Use WidgetStateProperty for newer Flutter versions
-            Colors.indigo,
+          fillColor: WidgetStateProperty.resolveWith<Color?>((
+            Set<WidgetState> states,
+          ) {
+            if (states.contains(WidgetState.disabled)) {
+              return null; // Use default disabled color from theme
+            }
+            return null; // Use primary color from ColorScheme
+          }),
+        ),
+      ),
+      // Add dark theme support using the same seed color
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.indigo,
+          brightness: Brightness.dark,
+        ),
+        // Typography using M3 type system
+        textTheme: TextTheme(
+          displayLarge: const TextStyle(fontWeight: FontWeight.bold),
+          bodyLarge: const TextStyle(fontSize: 16),
+        ),
+        // Input decoration theme that uses ColorScheme colors
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10.0)),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(width: 2.0),
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderSide: BorderSide(width: 2.0),
+            borderRadius: BorderRadius.circular(10.0),
+          ),
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          contentPadding: const EdgeInsets.symmetric(
+            vertical: 20.0,
+            horizontal: 12.0,
           ),
         ),
-        // dropdownMenuTheme might not be needed if using DropdownButtonFormField
-        // dropdownMenuTheme: const DropdownMenuThemeData(
-        //   textStyle: TextStyle(fontSize: 16),
-        // ),
+        // Button theme that uses ColorScheme colors automatically
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ButtonStyle(
+            padding: WidgetStateProperty.all(
+              const EdgeInsets.symmetric(vertical: 12, horizontal: 30),
+            ),
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
+            ),
+            textStyle: WidgetStateProperty.all(const TextStyle(fontSize: 18)),
+          ),
+        ),
+        // Radio theme that uses ColorScheme colors
+        radioTheme: RadioThemeData(
+          fillColor: WidgetStateProperty.resolveWith<Color?>((
+            Set<WidgetState> states,
+          ) {
+            if (states.contains(WidgetState.disabled)) {
+              return null; // Use default disabled color from theme
+            }
+            return null; // Use primary color from ColorScheme
+          }),
+        ),
       ),
+      // Use system theme mode by default
+      themeMode: ThemeMode.system,
     );
   }
 }
