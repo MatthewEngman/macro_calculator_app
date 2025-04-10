@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "758257668487",
+    "project_id": "macromash-22723",
+    "storage_bucket": "macromash-22723.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:758257668487:android:9481e143c184536bab8322",
+        "android_client_info": {
+          "package_name": "com.macromash.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8m6x8RmMyxPpViSkUQ9ChLBXiYEtqjIc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

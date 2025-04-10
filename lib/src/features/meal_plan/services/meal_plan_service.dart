@@ -9,8 +9,8 @@ class MealPlanService {
   static String get baseUrl {
     // For production or real device use
     if (kReleaseMode) {
-      // Replace with your production API URL
-      return 'https://your-production-api.com';
+      // Replace with your Cloud Run service URL when deployed
+      return 'https://meal-plan-service-xxxxxxxx-uc.a.run.app';
     }
 
     // For development use
