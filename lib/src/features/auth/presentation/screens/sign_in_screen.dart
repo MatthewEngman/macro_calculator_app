@@ -163,11 +163,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             color: colorScheme.primary,
                           ),
                         )
-                        : Image.asset(
-                          'assets/images/google_logo.png',
-                          height: 24,
-                          width: 24,
-                        ),
+                        : const Icon(Icons.g_mobiledata),
                 label: Text(
                   _isGoogleLoading ? 'Signing in...' : 'Sign in with Google',
                 ),
