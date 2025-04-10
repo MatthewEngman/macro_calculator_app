@@ -1,17 +1,19 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/entities/user_info.dart';
 import '../../domain/repositories/user_info_respository.dart';
-import '../../data/repositories/user_info_repository_impl.dart';
+import '../../data/repositories/user_info_repository_firestore_impl.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 
-// Provider for SharedPreferences instance
-final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError('SharedPreferences must be initialized');
+// Provider for Firestore instance
+final firestoreProvider = Provider<FirebaseFirestore>((ref) {
+  return FirebaseFirestore.instance;
 });
 
 final userInfoRepositoryProvider = Provider<UserInfoRepository>((ref) {
-  final prefs = ref.watch(sharedPreferencesProvider);
-  return UserInfoRepositoryImpl(prefs);
+  final firestore = ref.watch(firestoreProvider);
+  final auth = ref.watch(firebaseAuthProvider);
+  return UserInfoRepositoryFirestoreImpl(firestore, auth);
 });
 
 class UserInfoNotifier extends StateNotifier<AsyncValue<List<UserInfo>>> {
@@ -21,13 +23,15 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<List<UserInfo>>> {
     loadSavedUserInfos();
   }
 
-  Future<void> loadSavedUserInfos() async {
+  Future<List<UserInfo>> loadSavedUserInfos() async {
     state = const AsyncValue.loading();
     try {
       final userInfos = await _repository.getSavedUserInfos();
       state = AsyncValue.data(userInfos);
+      return userInfos;
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
+      return [];
     }
   }
 

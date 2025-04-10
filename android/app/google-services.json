@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "758257668487",
+    "project_id": "macromash-22723",
+    "storage_bucket": "macromash-22723.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:758257668487:android:9481e143c184536bab8322",
+        "android_client_info": {
+          "package_name": "com.macromash.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "758257668487-612kqc5hn9m9b9sj07a57um5712elcsa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.macromash.app",
+            "certificate_hash": "8f5336e3768c31e88b715efb69a7a1f673b6f767"
+          }
+        },
+        {
+          "client_id": "758257668487-8er785lc2flkcd8g2bv2hojj8768dl72.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8m6x8RmMyxPpViSkUQ9ChLBXiYEtqjIc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "758257668487-8er785lc2flkcd8g2bv2hojj8768dl72.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

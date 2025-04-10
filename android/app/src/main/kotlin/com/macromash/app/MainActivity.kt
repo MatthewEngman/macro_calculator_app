@@ -1,4 +1,4 @@
-package com.example.macro_calculator
+package com.macromash.app
 
 import android.os.Bundle
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -10,6 +10,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Handle the splash screen transition.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
