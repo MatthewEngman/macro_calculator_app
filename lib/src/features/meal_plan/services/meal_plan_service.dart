@@ -29,9 +29,10 @@ class MealPlanService {
   // Add a method to check if the API is available
   Future<bool> isApiAvailable() async {
     try {
-      // Try to access the generate-meal-plan endpoint directly with a HEAD request
+      // Use a simple GET request to the base URL or root endpoint
+      // Most APIs will respond to a GET request at the root path
       final response = await http
-          .head(Uri.parse('$baseUrl/generate-meal-plan/'))
+          .get(Uri.parse('$baseUrl/'))
           .timeout(const Duration(seconds: 3));
 
       return response.statusCode <
