@@ -679,7 +679,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         // This is an approximation and may not be exact
 
         // Get user info from the default macro
-        final userInfoState = ref.read(userInfoProvider);
         final userInfoNotifier = ref.read(userInfoProvider.notifier);
         final defaultUserInfo = await userInfoNotifier.getDefaultUserInfo();
 
