@@ -294,11 +294,11 @@ class _AccountUpgradeScreenState extends ConsumerState<AccountUpgradeScreen> {
                             : () {
                               Navigator.of(context).pop();
                             },
-                    child: const Text('Cancel'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       textStyle: textTheme.titleMedium,
                     ),
+                    child: const Text('Cancel'),
                   ),
                 ],
               ),

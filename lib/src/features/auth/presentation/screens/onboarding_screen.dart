@@ -1,0 +1,726 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../profile/domain/entities/user_info.dart';
+import '../../../profile/presentation/providers/user_info_provider.dart';
+import '../../../profile/presentation/providers/settings_provider.dart';
+
+class OnboardingScreen extends ConsumerStatefulWidget {
+  const OnboardingScreen({super.key});
+
+  @override
+  ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
+}
+
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
+  // Current step in the onboarding flow
+  String _currentStep = 'welcome';
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+
+  // Form controllers and state variables
+  final _personalInfoFormKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _ageController = TextEditingController();
+  String? _selectedGender;
+
+  final _measurementsFormKey = GlobalKey<FormState>();
+  final _weightController = TextEditingController();
+  final _heightFeetController = TextEditingController();
+  final _heightInchesController = TextEditingController();
+
+  // Goal and activity level
+  Goal _selectedGoal = Goal.maintain;
+  ActivityLevel _selectedActivityLevel = ActivityLevel.moderatelyActive;
+  final Units _selectedUnits = Units.imperial;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _nameController.dispose();
+    _ageController.dispose();
+    _weightController.dispose();
+    _heightFeetController.dispose();
+    _heightInchesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _proceedToNextStep() async {
+    await _animationController.reverse();
+
+    setState(() {
+      switch (_currentStep) {
+        case 'welcome':
+          _currentStep = 'personal_info';
+          break;
+        case 'personal_info':
+          _currentStep = 'body_measurements';
+          break;
+        case 'body_measurements':
+          _currentStep = 'fitness_goals';
+          break;
+        case 'fitness_goals':
+          _currentStep = 'activity_level';
+          break;
+        case 'activity_level':
+          _currentStep = 'complete';
+          break;
+        case 'complete':
+          _finalizeOnboarding();
+          return;
+      }
+    });
+
+    _animationController.forward();
+  }
+
+  Future<void> _finalizeOnboarding() async {
+    if (!mounted) return;
+
+    // Capture all provider references first
+    final userInfoNotifier = ref.read(userInfoProvider.notifier);
+    final prefs = ref.read(sharedPreferencesProvider);
+
+    // Create user profile from collected data
+    final userInfo = UserInfo(
+      name: _nameController.text,
+      age: int.tryParse(_ageController.text) ?? 30,
+      sex: _selectedGender ?? 'male',
+      weight: double.tryParse(_weightController.text) ?? 70,
+      feet: int.tryParse(_heightFeetController.text) ?? 5,
+      inches: int.tryParse(_heightInchesController.text) ?? 10,
+      activityLevel: _selectedActivityLevel,
+      goal: _selectedGoal,
+      units: _selectedUnits,
+    );
+
+    try {
+      // Save user profile
+      await userInfoNotifier.saveUserInfo(userInfo);
+
+      // Mark onboarding as complete
+      await prefs.setBool('onboarding_complete', true);
+
+      // Check if widget is still mounted before navigating
+      if (mounted && context.mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      // Handle any errors that might occur during saving
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving profile: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  String _getInstructionsForCurrentStep() {
+    switch (_currentStep) {
+      case 'welcome':
+        return 'Welcome to Macro Masher! Let\'s set up your personalized nutrition profile.';
+      case 'personal_info':
+        return 'Please share some basic information about yourself.';
+      case 'body_measurements':
+        return 'Now, let\'s record your current body measurements.';
+      case 'fitness_goals':
+        return 'What are your health and fitness goals?';
+      case 'activity_level':
+        return 'How would you describe your typical activity level?';
+      case 'complete':
+        return 'Setup complete! Your personalized nutrition journey begins now.';
+      default:
+        return 'Please proceed with the current step.';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Welcome to Macro Masher'),
+        centerTitle: true,
+        backgroundColor: colorScheme.surfaceContainerHighest,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: FadeTransition(
+            opacity: _fadeAnimation,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Progress indicator
+                if (_currentStep != 'welcome' && _currentStep != 'complete')
+                  LinearProgressIndicator(
+                    value: _getProgressValue(),
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                    color: colorScheme.primary,
+                  ),
+                const SizedBox(height: 24),
+                // Instructions
+                Text(
+                  _getInstructionsForCurrentStep(),
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                // Content based on current step
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: _buildContentForCurrentStep(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getProgressValue() {
+    switch (_currentStep) {
+      case 'personal_info':
+        return 0.2;
+      case 'body_measurements':
+        return 0.4;
+      case 'fitness_goals':
+        return 0.6;
+      case 'activity_level':
+        return 0.8;
+      case 'complete':
+        return 1.0;
+      default:
+        return 0.0;
+    }
+  }
+
+  Widget _buildContentForCurrentStep() {
+    switch (_currentStep) {
+      case 'welcome':
+        return _buildWelcomeStep();
+      case 'personal_info':
+        return _buildPersonalInfoStep();
+      case 'body_measurements':
+        return _buildBodyMeasurementsStep();
+      case 'fitness_goals':
+        return _buildFitnessGoalsStep();
+      case 'activity_level':
+        return _buildActivityLevelStep();
+      case 'complete':
+        return _buildCompletionStep();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildWelcomeStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      children: [
+        Icon(Icons.fitness_center, size: 100, color: colorScheme.primary),
+        const SizedBox(height: 32),
+        Text(
+          'Macro Masher',
+          style: textTheme.displayMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Your personalized nutrition assistant',
+          style: textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 48),
+        Text(
+          'We\'ll help you calculate your ideal macros and generate meal plans tailored to your goals.',
+          style: textTheme.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 64),
+        FilledButton(
+          onPressed: _proceedToNextStep,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+          ),
+          child: const Text('Get Started'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPersonalInfoStep() {
+    return Form(
+      key: _personalInfoFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              prefixIcon: Icon(Icons.person),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your name';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _ageController,
+            decoration: const InputDecoration(
+              labelText: 'Age',
+              prefixIcon: Icon(Icons.cake),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your age';
+              }
+              if (int.tryParse(value) == null) {
+                return 'Please enter a valid number';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              labelText: 'Sex',
+              prefixIcon: Icon(Icons.people),
+            ),
+            value: _selectedGender,
+            items: const [
+              DropdownMenuItem(value: 'male', child: Text('Male')),
+              DropdownMenuItem(value: 'female', child: Text('Female')),
+            ],
+            onChanged: (value) {
+              setState(() {
+                _selectedGender = value;
+              });
+            },
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please select your sex';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 48),
+          Center(
+            child: FilledButton(
+              onPressed: () {
+                if (_personalInfoFormKey.currentState!.validate()) {
+                  _proceedToNextStep();
+                }
+              },
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 32,
+                ),
+              ),
+              child: const Text('Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBodyMeasurementsStep() {
+    return Form(
+      key: _measurementsFormKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            controller: _weightController,
+            decoration: const InputDecoration(
+              labelText: 'Weight (lbs)',
+              prefixIcon: Icon(Icons.monitor_weight),
+            ),
+            keyboardType: TextInputType.number,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your weight';
+              }
+              if (double.tryParse(value) == null) {
+                return 'Please enter a valid number';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _heightFeetController,
+                  decoration: const InputDecoration(
+                    labelText: 'Height (feet)',
+                    prefixIcon: Icon(Icons.height),
+                  ),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    if (int.tryParse(value) == null) {
+                      return 'Invalid';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextFormField(
+                  controller: _heightInchesController,
+                  decoration: const InputDecoration(labelText: 'Inches'),
+                  keyboardType: TextInputType.number,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Required';
+                    }
+                    final inches = int.tryParse(value);
+                    if (inches == null || inches < 0 || inches > 11) {
+                      return 'Invalid (0-11)';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 48),
+          Center(
+            child: FilledButton(
+              onPressed: () {
+                if (_measurementsFormKey.currentState!.validate()) {
+                  _proceedToNextStep();
+                }
+              },
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 16,
+                  horizontal: 32,
+                ),
+              ),
+              child: const Text('Continue'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFitnessGoalsStep() {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('What is your primary fitness goal?', style: textTheme.titleLarge),
+        const SizedBox(height: 24),
+        _buildGoalOption(
+          goal: Goal.lose,
+          title: 'Lose Weight',
+          icon: Icons.trending_down,
+          description: 'Reduce body fat while preserving muscle mass',
+        ),
+        const SizedBox(height: 12),
+        _buildGoalOption(
+          goal: Goal.maintain,
+          title: 'Maintain Weight',
+          icon: Icons.balance,
+          description: 'Maintain current weight and body composition',
+        ),
+        const SizedBox(height: 12),
+        _buildGoalOption(
+          goal: Goal.gain,
+          title: 'Gain Muscle',
+          icon: Icons.trending_up,
+          description: 'Build muscle mass with minimal fat gain',
+        ),
+        const SizedBox(height: 48),
+        Center(
+          child: FilledButton(
+            onPressed: _proceedToNextStep,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+            ),
+            child: const Text('Continue'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoalOption({
+    required Goal goal,
+    required String title,
+    required IconData icon,
+    required String description,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _selectedGoal == goal;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedGoal = goal;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? colorScheme.primary : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color:
+                  isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+              size: 28,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:
+                          isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityLevelStep() {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'How active are you on a typical day?',
+          style: textTheme.titleLarge,
+        ),
+        const SizedBox(height: 24),
+        _buildActivityOption(
+          level: ActivityLevel.sedentary,
+          title: 'Sedentary',
+          description: 'Little to no exercise, desk job',
+          icon: Icons.weekend,
+        ),
+        const SizedBox(height: 12),
+        _buildActivityOption(
+          level: ActivityLevel.lightlyActive,
+          title: 'Lightly Active',
+          description: 'Light exercise 1-3 days per week',
+          icon: Icons.directions_walk,
+        ),
+        const SizedBox(height: 12),
+        _buildActivityOption(
+          level: ActivityLevel.moderatelyActive,
+          title: 'Moderately Active',
+          description: 'Moderate exercise 3-5 days per week',
+          icon: Icons.directions_run,
+        ),
+        const SizedBox(height: 12),
+        _buildActivityOption(
+          level: ActivityLevel.veryActive,
+          title: 'Very Active',
+          description: 'Hard exercise 6-7 days per week',
+          icon: Icons.fitness_center,
+        ),
+        const SizedBox(height: 48),
+        Center(
+          child: FilledButton(
+            onPressed: _proceedToNextStep,
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+            ),
+            child: const Text('Continue'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityOption({
+    required ActivityLevel level,
+    required String title,
+    required String description,
+    required IconData icon,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isSelected = _selectedActivityLevel == level;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedActivityLevel = level;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? colorScheme.primaryContainer
+                  : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? colorScheme.primary : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color:
+                  isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
+              size: 28,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:
+                          isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_circle, color: colorScheme.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompletionStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      children: [
+        Icon(Icons.check_circle, size: 100, color: colorScheme.primary),
+        const SizedBox(height: 32),
+        Text(
+          'You\'re all set!',
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Your profile has been created and your macro targets are ready.',
+          style: textTheme.titleMedium,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 48),
+        FilledButton(
+          onPressed: _finalizeOnboarding,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+          ),
+          child: const Text('Go to Dashboard'),
+        ),
+      ],
+    );
+  }
+}

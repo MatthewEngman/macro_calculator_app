@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/calculator/presentation/screens/calculator_screen.dart';
@@ -12,8 +13,11 @@ import '../../features/profile/domain/entities/user_info.dart';
 import '../../features/auth/presentation/screens/sign_in_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../shared/widgets/app_scaffold.dart';
+import '../../features/auth/presentation/screens/onboarding_screen.dart';
+import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 
 final appRouter = GoRouter(
+  navigatorKey: GlobalKey<NavigatorState>(),
   debugLogDiagnostics: true, // Enable logging for debugging
   initialLocation: '/signin', // Set initial route to sign-in page
   redirect: (context, state) {
@@ -46,6 +50,10 @@ final appRouter = GoRouter(
   routes: [
     // Auth Routes - Outside the ShellRoute so they don't have the bottom navigation bar
     GoRoute(path: '/signin', builder: (context, state) => const SignInScreen()),
+    GoRoute(
+      path: '/onboarding',
+      builder: (context, state) => const OnboardingScreen(),
+    ),
     // Main App Routes - Inside ShellRoute to have the bottom navigation bar
     ShellRoute(
       builder: (context, state, child) {
@@ -54,6 +62,12 @@ final appRouter = GoRouter(
       routes: [
         GoRoute(
           path: '/',
+          builder:
+              (context, state) =>
+                  const DashboardScreen(), // Use the new dashboard screen as home
+        ),
+        GoRoute(
+          path: '/calculator',
           builder: (context, state) {
             final userInfo = state.extra as UserInfo?;
             return CalculatorScreen(userInfo: userInfo);
@@ -85,6 +99,10 @@ final appRouter = GoRouter(
             final mealPlan = state.extra as MealPlan;
             return MealPlanResultScreen(mealPlan: mealPlan);
           },
+        ),
+        GoRoute(
+          path: '/onboarding',
+          builder: (context, state) => const OnboardingScreen(),
         ),
       ],
     ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -29,6 +30,12 @@ void main() async {
   runApp(
     ProviderScope(
       overrides: [
+        navigationProvider.overrideWithValue((route) {
+          final context = appRouter.routerDelegate.navigatorKey.currentContext;
+          if (context != null && context.mounted) {
+            context.go(route);
+          }
+        }),
         // Override the SharedPreferences provider with the instance
         sharedPreferencesProvider.overrideWithValue(prefs),
         // Override the database provider with the initialized database
@@ -56,7 +63,7 @@ class MacroCalculatorApp extends ConsumerWidget {
     ref.watch(authStateListenerProvider);
 
     return MaterialApp.router(
-      routerConfig: appRouter, // Use the router
+      routerConfig: appRouter,
       title: 'Macro Masher',
       theme: ThemeData(
         useMaterial3: true,
