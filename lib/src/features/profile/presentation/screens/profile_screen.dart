@@ -16,14 +16,24 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        backgroundColor: colorScheme.surface,
         appBar: AppBar(
           title: const Text('Profile'),
           centerTitle: true,
-          backgroundColor: colorScheme.surfaceContainerHighest,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [colorScheme.primary, colorScheme.primaryContainer],
+              ),
+            ),
+          ),
           actions: [
             // Check if the user is anonymous
             if (ref.watch(authRepositoryProvider).currentUser?.isAnonymous ??
@@ -45,12 +55,11 @@ class ProfileScreen extends ConsumerWidget {
               onPressed: () async {
                 try {
                   // First navigate to the sign-in page, then sign out
-                  // This prevents the router confusion about auth state
                   if (context.mounted) {
                     context.go('/signin');
                   }
 
-                  // Small delay to ensure navigation completes before auth state changes
+                  // Small delay to ensure navigation completes
                   await Future.delayed(const Duration(milliseconds: 100));
 
                   // Now sign out
@@ -101,13 +110,8 @@ class ProfileScreen extends ConsumerWidget {
             ],
           ),
         ),
-        backgroundColor: colorScheme.surface,
         body: TabBarView(
-          children: [
-            _SavedResultsTab(),
-            const UserInfoTab(),
-            _FirestoreTestTab(),
-          ],
+          children: [_SavedResultsTab(), UserInfoTab(), _FirestoreTestTab()],
         ),
       ),
     );

@@ -15,6 +15,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../shared/widgets/app_scaffold.dart';
 import '../../features/auth/presentation/screens/onboarding_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/progress/presentation/screens/progress_screen.dart';
 
 final appRouter = GoRouter(
   navigatorKey: GlobalKey<NavigatorState>(),
@@ -103,6 +104,10 @@ final appRouter = GoRouter(
         GoRoute(
           path: '/onboarding',
           builder: (context, state) => const OnboardingScreen(),
+        ),
+        GoRoute(
+          path: '/progress',
+          builder: (context, state) => const ProgressScreen(),
         ),
       ],
     ),

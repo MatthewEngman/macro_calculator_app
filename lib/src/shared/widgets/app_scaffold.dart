@@ -42,6 +42,9 @@ class AppScaffold extends StatelessWidget {
     if (currentPath.startsWith('/calculator')) return 1;
     if (currentPath.startsWith('/meal-plans')) return 2;
     if (currentPath.startsWith('/profile')) return 3;
+    if (currentPath.startsWith('/progress')) {
+      return 0; // Show dashboard tab as active for progress
+    }
     return 0; // Default to dashboard
   }
 

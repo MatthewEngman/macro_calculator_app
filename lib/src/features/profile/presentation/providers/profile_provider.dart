@@ -15,6 +15,9 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
 
 // Provider for accessing the default macro
 final defaultMacroProvider = FutureProvider<MacroResult?>((ref) async {
+  // Watch the profile provider to automatically refresh when macros change
+  ref.watch(profileProvider);
+
   final repository = ref.watch(profileRepositoryProvider);
   return await repository.getDefaultMacro();
 });

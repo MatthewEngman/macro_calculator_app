@@ -54,10 +54,19 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: const Text('Meal Plan History'),
         centerTitle: true,
-        backgroundColor: colorScheme.surfaceContainerHighest,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [colorScheme.primary, colorScheme.primaryContainer],
+            ),
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -72,7 +81,6 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
           ),
         ],
       ),
-      backgroundColor: colorScheme.surface,
       body: Column(
         children: [
           // API Unavailable Warning
@@ -127,34 +135,31 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.no_meals,
-                          size: 48,
-                          color: colorScheme.outline,
+                          Icons.restaurant_menu,
+                          size: 64,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(height: 16),
                         Text(
                           'No meal plans yet',
                           style: textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurface,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(
-                          onPressed:
-                              _isApiAvailable
-                                  ? () => context.go('/meal-plans/generate')
-                                  : null,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Create Your First Meal Plan'),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Generate a meal plan to see it here',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 24),
                         if (!_isApiAvailable)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              'Service currently unavailable',
-                              style: textTheme.bodySmall?.copyWith(
-                                color: colorScheme.error,
-                              ),
+                          Text(
+                            'Service currently unavailable',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.error,
                             ),
                           ),
                       ],
@@ -167,7 +172,7 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
                     _refreshMealPlans();
                   },
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.all(16),
                     itemCount: mealPlans.length,
                     itemBuilder: (context, index) {
                       final plan = mealPlans[index];
@@ -214,9 +219,9 @@ class _MealPlanHistoryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: colorScheme.secondaryContainer,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -232,7 +237,8 @@ class _MealPlanHistoryCard extends StatelessWidget {
                     child: Text(
                       '${mealPlan.diet.toUpperCase()} Diet',
                       style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -246,7 +252,7 @@ class _MealPlanHistoryCard extends StatelessWidget {
               Text(
                 'Goal: ${mealPlan.goal}',
                 style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSecondaryContainer,
+                  color: colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -263,7 +269,7 @@ class _MealPlanHistoryCard extends StatelessWidget {
                   Text(
                     '${dateFormat.format(mealPlan.timestamp)} at ${timeFormat.format(mealPlan.timestamp)}',
                     style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSecondaryContainer.withOpacity(0.7),
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

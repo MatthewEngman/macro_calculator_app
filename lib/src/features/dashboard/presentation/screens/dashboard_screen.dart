@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../../../profile/presentation/providers/user_info_provider.dart';
 import '../../../profile/domain/entities/user_info.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
+import '../../../calculator/domain/entities/macro_result.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -11,6 +13,7 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userInfosAsync = ref.watch(userInfoProvider);
+    final defaultMacroAsync = ref.watch(defaultMacroProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -25,9 +28,12 @@ class DashboardScreen extends ConsumerWidget {
                   expandedHeight: 200.0,
                   floating: false,
                   pinned: true,
+                  centerTitle: true,
                   flexibleSpace: FlexibleSpaceBar(
+                    centerTitle: true,
                     title: Text(
                       'Welcome${userInfo?.name != null ? ", ${userInfo!.name}" : ""}',
+                      textAlign: TextAlign.center,
                     ),
                     background: Container(
                       decoration: BoxDecoration(
@@ -47,12 +53,20 @@ class DashboardScreen extends ConsumerWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text('Your Dashboard', style: textTheme.headlineMedium),
+                        Center(
+                          child: Text(
+                            'Your Dashboard',
+                            style: textTheme.headlineMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
                         const SizedBox(height: 24),
                         if (userInfo != null)
                           _buildUserInfoCard(context, userInfo),
+                        const SizedBox(height: 24),
+                        _buildDefaultMacroCard(context, defaultMacroAsync),
                         const SizedBox(height: 24),
                         _buildFeatureCards(context),
                       ],
@@ -168,11 +182,96 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildDefaultMacroCard(
+    BuildContext context,
+    AsyncValue<MacroResult?> defaultMacroAsync,
+  ) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Center(
+              child: Text(
+                'Macro Calculation',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 16),
+            defaultMacroAsync.when(
+              data: (macroResult) {
+                if (macroResult == null) {
+                  return Text(
+                    'No macro calculation found. Complete the calculator to set one.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  );
+                }
+                return Column(
+                  children: [
+                    _buildMacroRow(
+                      context,
+                      'Calories',
+                      macroResult.calories.round().toString(),
+                    ),
+                    _buildMacroRow(
+                      context,
+                      'Protein',
+                      macroResult.protein.round().toString(),
+                    ),
+                    _buildMacroRow(
+                      context,
+                      'Carbohydrates',
+                      macroResult.carbs.round().toString(),
+                    ),
+                    _buildMacroRow(
+                      context,
+                      'Fat',
+                      macroResult.fat.round().toString(),
+                    ),
+                  ],
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, stackTrace) => Text(
+                    'Error loading macro calculation: $error',
+                    textAlign: TextAlign.center,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMacroRow(BuildContext context, String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: textTheme.bodyMedium),
+        Text(value, style: textTheme.titleMedium),
+      ],
+    );
+  }
+
   Widget _buildFeatureCards(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text('Quick Actions', style: Theme.of(context).textTheme.titleLarge),
+        Center(
+          child: Text(
+            'Quick Actions',
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+        ),
         const SizedBox(height: 16),
         GridView.count(
           shrinkWrap: true,
@@ -191,7 +290,7 @@ class DashboardScreen extends ConsumerWidget {
               context,
               'Meal Plans',
               Icons.restaurant_menu,
-              () => context.push('/meal-plan'),
+              () => context.push('/meal-plans'),
             ),
             _buildFeatureCard(
               context,
@@ -203,7 +302,7 @@ class DashboardScreen extends ConsumerWidget {
               context,
               'Settings',
               Icons.settings,
-              () => context.push('/settings'),
+              () => context.push('/profile'),
             ),
           ],
         ),
@@ -252,8 +351,6 @@ class DashboardScreen extends ConsumerWidget {
         return 'Maintain Weight';
       case Goal.gain:
         return 'Gain Muscle';
-      default:
-        return 'Maintain Weight';
     }
   }
 
