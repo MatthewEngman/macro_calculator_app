@@ -151,28 +151,39 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                 ),
               // Google Sign-In button
-              OutlinedButton.icon(
-                onPressed: _isGoogleLoading ? null : _signInWithGoogle,
-                icon:
+              Container(
+                height: 50,
+                margin: const EdgeInsets.only(bottom: 16),
+                child:
                     _isGoogleLoading
-                        ? SizedBox(
-                          width: 20,
-                          height: 20,
+                        ? Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             color: colorScheme.primary,
                           ),
                         )
-                        : const Icon(Icons.g_mobiledata),
-                label: Text(
-                  _isGoogleLoading ? 'Signing in...' : 'Sign in with Google',
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: textTheme.titleMedium,
-                  side: BorderSide(color: colorScheme.outline),
-                  backgroundColor: Colors.white,
-                ),
+                        : ElevatedButton.icon(
+                          onPressed: _signInWithGoogle,
+                          icon: Image.network(
+                            'https://developers.google.com/identity/images/g-logo.png',
+                            height: 24.0,
+                          ),
+                          label: const Text(
+                            'Sign in with Google',
+                            style: TextStyle(
+                              fontFamily: 'Roboto',
+                              color: Colors.black87,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black87,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
               ),
               const SizedBox(height: 16),
               // Email sign-in button
