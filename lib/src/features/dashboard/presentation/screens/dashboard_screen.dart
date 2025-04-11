@@ -18,62 +18,43 @@ class DashboardScreen extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text('Welcome', style: textTheme.titleLarge),
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [colorScheme.primary, colorScheme.primaryContainer],
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: userInfosAsync.when(
           data: (userInfos) {
             final userInfo = userInfos.isNotEmpty ? userInfos.first : null;
-            return CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  expandedHeight: 200.0,
-                  floating: false,
-                  pinned: true,
-                  centerTitle: true,
-                  flexibleSpace: FlexibleSpaceBar(
-                    centerTitle: true,
-                    title: Text(
-                      'Welcome${userInfo?.name != null ? ", ${userInfo!.name}" : ""}',
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Center(
+                    child: Text(
+                      'Your Dashboard',
+                      style: textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
-                    background: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            colorScheme.primary,
-                            colorScheme.primaryContainer,
-                          ],
-                        ),
-                      ),
-                    ),
                   ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Center(
-                          child: Text(
-                            'Your Dashboard',
-                            style: textTheme.headlineMedium,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        if (userInfo != null)
-                          _buildUserInfoCard(context, userInfo),
-                        const SizedBox(height: 24),
-                        _buildDefaultMacroCard(context, defaultMacroAsync),
-                        const SizedBox(height: 24),
-                        _buildFeatureCards(context),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  if (userInfo != null) _buildUserInfoCard(context, userInfo),
+                  const SizedBox(height: 24),
+                  _buildDefaultMacroCard(context, defaultMacroAsync),
+                  const SizedBox(height: 24),
+                  _buildFeatureCards(context),
+                ],
+              ),
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),

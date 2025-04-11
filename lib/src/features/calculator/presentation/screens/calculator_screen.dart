@@ -114,96 +114,140 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        title: const Text('Macro Calculator'),
+        centerTitle: true,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [colorScheme.primary, colorScheme.primaryContainer],
+            ),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Form(
           key: _formKey,
-          child: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                expandedHeight: 150.0,
-                floating: false,
-                pinned: true,
-                centerTitle: true,
-                flexibleSpace: FlexibleSpaceBar(
-                  centerTitle: true,
-                  title: const Text(
-                    'Macro Calculator',
-                    textAlign: TextAlign.center,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Basic Information Card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  background: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          colorScheme.primary,
-                          colorScheme.primaryContainer,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Basic Information Card
-                      Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            'Basic Information',
+                            style: textTheme.titleLarge,
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
+                        const SizedBox(height: 16),
+                        // Weight Input
+                        InputField(
+                          label: 'Weight ($weightUnit)',
+                          hint: 'Enter your weight',
+                          keyboardType: TextInputType.number,
+                          controller: _weightController,
+                          onChanged: (value) {
+                            calculatorNotifier.weight =
+                                double.tryParse(value) ?? 0.0;
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your weight';
+                            }
+                            if (double.tryParse(value) == null) {
+                              return 'Please enter a valid number';
+                            }
+                            final weight = double.parse(value);
+                            if (weight <= 0) {
+                              return 'Weight must be greater than 0';
+                            }
+                            final maxWeight =
+                                isMetric ? 227 : 500; // 500 lbs = ~227 kg
+                            if (weight > maxWeight) {
+                              return 'Weight must be less than $maxWeight $weightUnit';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Height Input
+                        if (isMetric)
+                          InputField(
+                            label: 'Height (cm)',
+                            hint: 'Enter your height in cm',
+                            keyboardType: TextInputType.number,
+                            controller: _inchesController,
+                            onChanged: (value) {
+                              calculatorNotifier.inches =
+                                  int.tryParse(value) ?? 0;
+                            },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your height';
+                              }
+                              if (int.tryParse(value) == null) {
+                                return 'Please enter a valid number';
+                              }
+                              final height = int.parse(value);
+                              if (height <= 0) {
+                                return 'Height must be greater than 0';
+                              }
+                              if (height > 250) {
+                                return 'Height must be less than 250 cm';
+                              }
+                              return null;
+                            },
+                          )
+                        else
+                          Row(
                             children: [
-                              Center(
-                                child: Text(
-                                  'Basic Information',
-                                  style: textTheme.titleLarge,
-                                  textAlign: TextAlign.center,
+                              Expanded(
+                                child: InputField(
+                                  label: 'Feet',
+                                  hint: 'ft',
+                                  keyboardType: TextInputType.number,
+                                  controller: _feetController,
+                                  onChanged: (value) {
+                                    calculatorNotifier.feet =
+                                        int.tryParse(value) ?? 0;
+                                  },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Enter feet';
+                                    }
+                                    if (int.tryParse(value) == null) {
+                                      return 'Invalid number';
+                                    }
+                                    final feet = int.parse(value);
+                                    if (feet <= 0) {
+                                      return 'Must be > 0';
+                                    }
+                                    if (feet > 8) {
+                                      return 'Must be < 9';
+                                    }
+                                    return null;
+                                  },
                                 ),
                               ),
-                              const SizedBox(height: 16),
-                              // Weight Input
-                              InputField(
-                                label: 'Weight ($weightUnit)',
-                                hint: 'Enter your weight',
-                                keyboardType: TextInputType.number,
-                                controller: _weightController,
-                                onChanged: (value) {
-                                  calculatorNotifier.weight =
-                                      double.tryParse(value) ?? 0.0;
-                                },
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your weight';
-                                  }
-                                  if (double.tryParse(value) == null) {
-                                    return 'Please enter a valid number';
-                                  }
-                                  final weight = double.parse(value);
-                                  if (weight <= 0) {
-                                    return 'Weight must be greater than 0';
-                                  }
-                                  final maxWeight =
-                                      isMetric ? 227 : 500; // 500 lbs = ~227 kg
-                                  if (weight > maxWeight) {
-                                    return 'Weight must be less than $maxWeight $weightUnit';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              // Height Input
-                              if (isMetric)
-                                InputField(
-                                  label: 'Height (cm)',
-                                  hint: 'Enter your height in cm',
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: InputField(
+                                  label: 'Inches',
+                                  hint: 'in',
                                   keyboardType: TextInputType.number,
                                   controller: _inchesController,
                                   onChanged: (value) {
@@ -212,334 +256,267 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                   },
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
-                                      return 'Please enter your height';
+                                      return 'Enter inches';
                                     }
                                     if (int.tryParse(value) == null) {
-                                      return 'Please enter a valid number';
+                                      return 'Invalid number';
                                     }
-                                    final height = int.parse(value);
-                                    if (height <= 0) {
-                                      return 'Height must be greater than 0';
+                                    final inches = int.parse(value);
+                                    if (inches < 0) {
+                                      return 'Must be >= 0';
                                     }
-                                    if (height > 250) {
-                                      return 'Height must be less than 250 cm';
-                                    }
-                                    return null;
-                                  },
-                                )
-                              else
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: InputField(
-                                        label: 'Feet',
-                                        hint: 'ft',
-                                        keyboardType: TextInputType.number,
-                                        controller: _feetController,
-                                        onChanged: (value) {
-                                          calculatorNotifier.feet =
-                                              int.tryParse(value) ?? 0;
-                                        },
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) {
-                                            return 'Enter feet';
-                                          }
-                                          if (int.tryParse(value) == null) {
-                                            return 'Invalid number';
-                                          }
-                                          final feet = int.parse(value);
-                                          if (feet <= 0) {
-                                            return 'Must be > 0';
-                                          }
-                                          if (feet > 8) {
-                                            return 'Must be < 9';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: InputField(
-                                        label: 'Inches',
-                                        hint: 'in',
-                                        keyboardType: TextInputType.number,
-                                        controller: _inchesController,
-                                        onChanged: (value) {
-                                          calculatorNotifier.inches =
-                                              int.tryParse(value) ?? 0;
-                                        },
-                                        validator: (value) {
-                                          if (value == null || value.isEmpty) {
-                                            return 'Enter inches';
-                                          }
-                                          if (int.tryParse(value) == null) {
-                                            return 'Invalid number';
-                                          }
-                                          final inches = int.parse(value);
-                                          if (inches < 0) {
-                                            return 'Must be >= 0';
-                                          }
-                                          if (inches > 11) {
-                                            return 'Must be < 12';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              const SizedBox(height: 16),
-                              // Age Input
-                              InputField(
-                                label: 'Age',
-                                hint: 'Enter your age',
-                                keyboardType: TextInputType.number,
-                                controller: _ageController,
-                                onChanged: (value) {
-                                  calculatorNotifier.age =
-                                      int.tryParse(value) ?? 0;
-                                },
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your age';
-                                  }
-                                  if (int.tryParse(value) == null) {
-                                    return 'Please enter a valid number';
-                                  }
-                                  final age = int.parse(value);
-                                  if (age <= 0) {
-                                    return 'Age must be greater than 0';
-                                  }
-                                  if (age > 120) {
-                                    return 'Age must be less than 120';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              // Sex Selection
-                              DropdownButtonFormField<String>(
-                                value: _selectedSex,
-                                decoration: const InputDecoration(
-                                  labelText: 'Sex',
-                                  border: OutlineInputBorder(),
-                                ),
-                                items:
-                                    ['male', 'female'].map((sex) {
-                                      return DropdownMenuItem(
-                                        value: sex,
-                                        child: Text(
-                                          sex.substring(0, 1).toUpperCase() +
-                                              sex.substring(1),
-                                        ),
-                                      );
-                                    }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _selectedSex = value;
-                                    });
-                                    calculatorNotifier.sex = value;
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Activity Level Card
-                      Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Center(
-                                child: Text(
-                                  'Activity Level',
-                                  style: textTheme.titleLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              DropdownButtonFormField<ActivityLevel>(
-                                value: _selectedActivityLevel,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                ),
-                                items:
-                                    ActivityLevel.values.map((level) {
-                                      return DropdownMenuItem(
-                                        value: level,
-                                        child: Text(
-                                          _getActivityLevelLabel(level),
-                                        ),
-                                      );
-                                    }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _selectedActivityLevel = value;
-                                    });
-                                    calculatorNotifier.activityLevel =
-                                        value.name;
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Goal Card
-                      Card(
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Center(
-                                child: Text(
-                                  'Goal',
-                                  style: textTheme.titleLarge,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              DropdownButtonFormField<Goal>(
-                                value: _selectedGoal,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(),
-                                ),
-                                items:
-                                    Goal.values.map((goal) {
-                                      return DropdownMenuItem(
-                                        value: goal,
-                                        child: Text(_getGoalLabel(goal)),
-                                      );
-                                    }).toList(),
-                                onChanged: (value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      _selectedGoal = value;
-                                    });
-                                    calculatorNotifier.goal = value.name;
-                                  }
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              // Weight Change Rate Input
-                              if (_selectedGoal != Goal.maintain)
-                                InputField(
-                                  label:
-                                      'Weight Change Rate ($weightUnit/week)',
-                                  hint: 'Enter rate in $weightUnit/week',
-                                  keyboardType: TextInputType.number,
-                                  onChanged: (value) {
-                                    calculatorNotifier.weightChangeRate =
-                                        double.tryParse(value); // Allow null
-                                  },
-                                  validator: (value) {
-                                    if (_selectedGoal == Goal.maintain) {
-                                      return null;
-                                    }
-                                    if (value == null || value.isEmpty) {
-                                      return 'Please enter a rate.';
-                                    }
-                                    final rate = double.tryParse(value);
-                                    if (rate == null) {
-                                      return 'Please enter a valid number';
-                                    }
-                                    if (rate <= 0) {
-                                      return 'Rate must be greater than 0';
-                                    }
-                                    String goal = calculatorNotifier.goal;
-                                    final maxRate =
-                                        isMetric
-                                            ? (goal == 'lose' ? 0.9 : 0.45)
-                                            : // 2 lbs = ~0.9 kg, 1 lb = ~0.45 kg
-                                            (goal == 'lose' ? 2.0 : 1.0);
-                                    if (rate > maxRate) {
-                                      return 'The safe recommended weight ${goal == 'lose' ? 'loss' : 'gain'} is up to $maxRate $weightUnit a week';
+                                    if (inches > 11) {
+                                      return 'Must be < 12';
                                     }
                                     return null;
                                   },
                                 ),
+                              ),
                             ],
                           ),
+                        const SizedBox(height: 16),
+                        // Age Input
+                        InputField(
+                          label: 'Age',
+                          hint: 'Enter your age',
+                          keyboardType: TextInputType.number,
+                          controller: _ageController,
+                          onChanged: (value) {
+                            calculatorNotifier.age = int.tryParse(value) ?? 0;
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your age';
+                            }
+                            if (int.tryParse(value) == null) {
+                              return 'Please enter a valid number';
+                            }
+                            final age = int.parse(value);
+                            if (age <= 0) {
+                              return 'Age must be greater than 0';
+                            }
+                            if (age > 120) {
+                              return 'Age must be less than 120';
+                            }
+                            return null;
+                          },
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Calculate Button
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: FilledButton.icon(
-                          onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              // Reset weight change rate if goal is maintain
-                              if (calculatorNotifier.goal == 'maintain') {
-                                calculatorNotifier.weightChangeRate = null;
-                              }
-
-                              // Calculate macros and navigate to results
-                              final result =
-                                  ref
-                                      .read(calculatorProvider.notifier)
-                                      .calculateMacros();
-                              if (result != null) {
-                                context.push('/result', extra: result);
-                              }
+                        const SizedBox(height: 16),
+                        // Sex Selection
+                        DropdownButtonFormField<String>(
+                          value: _selectedSex,
+                          decoration: const InputDecoration(
+                            labelText: 'Sex',
+                            border: OutlineInputBorder(),
+                          ),
+                          items:
+                              ['male', 'female'].map((sex) {
+                                return DropdownMenuItem(
+                                  value: sex,
+                                  child: Text(
+                                    sex.substring(0, 1).toUpperCase() +
+                                        sex.substring(1),
+                                  ),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedSex = value;
+                              });
+                              calculatorNotifier.sex = value;
                             }
                           },
-                          icon: const Icon(Icons.calculate),
-                          label: const Text('Calculate Macros'),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Center(
-                          child: InkWell(
-                            onTap: () {
-                              _showCalculationInfoDialog(context);
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  size: 16,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'How are macros calculated?',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.primary,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                // Activity Level Card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            'Activity Level',
+                            style: textTheme.titleLarge,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<ActivityLevel>(
+                          value: _selectedActivityLevel,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                          items:
+                              ActivityLevel.values.map((level) {
+                                return DropdownMenuItem(
+                                  value: level,
+                                  child: Text(_getActivityLevelLabel(level)),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedActivityLevel = value;
+                              });
+                              calculatorNotifier.activityLevel = value.name;
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Goal Card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Center(
+                          child: Text(
+                            'Goal',
+                            style: textTheme.titleLarge,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<Goal>(
+                          value: _selectedGoal,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                          ),
+                          items:
+                              Goal.values.map((goal) {
+                                return DropdownMenuItem(
+                                  value: goal,
+                                  child: Text(_getGoalLabel(goal)),
+                                );
+                              }).toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedGoal = value;
+                              });
+                              calculatorNotifier.goal = value.name;
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Weight Change Rate Input
+                        if (_selectedGoal != Goal.maintain)
+                          InputField(
+                            label: 'Weight Change Rate ($weightUnit/week)',
+                            hint: 'Enter rate in $weightUnit/week',
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              calculatorNotifier.weightChangeRate =
+                                  double.tryParse(value); // Allow null
+                            },
+                            validator: (value) {
+                              if (_selectedGoal == Goal.maintain) {
+                                return null;
+                              }
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter a rate.';
+                              }
+                              final rate = double.tryParse(value);
+                              if (rate == null) {
+                                return 'Please enter a valid number';
+                              }
+                              if (rate <= 0) {
+                                return 'Rate must be greater than 0';
+                              }
+                              String goal = calculatorNotifier.goal;
+                              final maxRate =
+                                  isMetric
+                                      ? (goal == 'lose' ? 0.9 : 0.45)
+                                      : // 2 lbs = ~0.9 kg, 1 lb = ~0.45 kg
+                                      (goal == 'lose' ? 2.0 : 1.0);
+                              if (rate > maxRate) {
+                                return 'The safe recommended weight ${goal == 'lose' ? 'loss' : 'gain'} is up to $maxRate $weightUnit a week';
+                              }
+                              return null;
+                            },
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Calculate Button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      if (_formKey.currentState!.validate()) {
+                        // Reset weight change rate if goal is maintain
+                        if (calculatorNotifier.goal == 'maintain') {
+                          calculatorNotifier.weightChangeRate = null;
+                        }
+
+                        // Calculate macros and navigate to results
+                        final result =
+                            ref
+                                .read(calculatorProvider.notifier)
+                                .calculateMacros();
+                        if (result != null) {
+                          context.push('/result', extra: result);
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.calculate),
+                    label: const Text('Calculate Macros'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Center(
+                    child: InkWell(
+                      onTap: () {
+                        _showCalculationInfoDialog(context);
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'How are macros calculated?',
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         ),
       ),
