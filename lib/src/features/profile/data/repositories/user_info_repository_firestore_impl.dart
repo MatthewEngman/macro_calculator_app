@@ -14,7 +14,7 @@ class UserInfoRepositoryFirestoreImpl implements UserInfoRepository {
   String? get _userId => _auth.currentUser?.uid;
 
   // Helper method to get the user-specific collection path
-  String get _userCollection => 'users/${_userId}/${_collection}';
+  String get _userCollection => 'users/$_userId/$_collection';
 
   @override
   Future<List<UserInfo>> getSavedUserInfos() async {

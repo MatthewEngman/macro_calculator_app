@@ -11,6 +11,7 @@ class UserInfo {
   final Units units;
   final String? id;
   final bool isDefault;
+  final String? name;
 
   UserInfo({
     this.weight,
@@ -23,6 +24,7 @@ class UserInfo {
     required this.units,
     this.id,
     this.isDefault = false,
+    this.name,
   });
 
   UserInfo copyWith({
@@ -36,6 +38,7 @@ class UserInfo {
     Units? units,
     String? id,
     bool? isDefault,
+    String? name,
   }) {
     return UserInfo(
       weight: weight ?? this.weight,
@@ -48,6 +51,7 @@ class UserInfo {
       units: units ?? this.units,
       id: id ?? this.id,
       isDefault: isDefault ?? this.isDefault,
+      name: name ?? this.name,
     );
   }
 
@@ -63,6 +67,7 @@ class UserInfo {
       'units': units.index,
       'id': id,
       'isDefault': isDefault,
+      'name': name,
     };
   }
 
@@ -78,6 +83,7 @@ class UserInfo {
       units: Units.values[json['units'] ?? 0],
       id: json['id'],
       isDefault: json['isDefault'] ?? false,
+      name: json['name'],
     );
   }
 }

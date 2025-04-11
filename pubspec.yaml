@@ -26,6 +26,7 @@ dependencies:
   cloud_firestore: ^4.15.9
   riverpod: any
   google_sign_in: ^6.2.1
+  google_fonts: ^6.1.0
 
 dev_dependencies:
   flutter_test:

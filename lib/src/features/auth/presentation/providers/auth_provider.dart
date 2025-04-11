@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/routing/app_router.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../../profile/domain/entities/user_info.dart' as app;
@@ -20,13 +22,33 @@ final authStateChangesProvider = StreamProvider<User?>((ref) {
   return repository.authStateChanges;
 });
 
-// Add a provider that listens to auth state changes and creates a default profile if needed
+final navigationProvider = Provider<void Function(String)>((ref) {
+  return (String route) {
+    final context = appRouter.routerDelegate.navigatorKey.currentContext;
+    if (context != null && context.mounted) {
+      context.go(route);
+    }
+  };
+});
+
 final authStateListenerProvider = Provider<void>((ref) {
   ref.listen<AsyncValue<User?>>(authStateChangesProvider, (previous, current) {
     current.whenData((user) {
       if (user != null) {
-        // When a user signs in (including anonymously), check if they have a profile
-        // and create one if they don't
+        // When a user signs in, check if they need onboarding
+        final prefs = ref.read(sharedPreferencesProvider);
+        final onboardingComplete =
+            prefs.getBool('onboarding_complete') ?? false;
+
+        if (!onboardingComplete) {
+          // User needs onboarding, navigate to onboarding screen
+          Future.delayed(Duration(milliseconds: 100), () {
+            ref.read(navigationProvider)('/onboarding');
+          });
+          return;
+        }
+
+        // Otherwise, check if they have a profile and create one if needed
         final userInfoNotifier = ref.read(userInfoProvider.notifier);
         userInfoNotifier.loadSavedUserInfos().then((userInfos) {
           if (userInfos.isEmpty) {
