@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../profile/domain/entities/user_info.dart';
+import '../../../profile/domain/entities/user_info.dart'; // Assuming Goal, ActivityLevel, Units are defined here
 import '../../../profile/presentation/providers/user_info_provider.dart';
-import '../../../profile/presentation/providers/settings_provider.dart';
+import '../../../profile/presentation/providers/settings_provider.dart'; // Assuming sharedPreferencesProvider is defined via this import chain
+import '../../../calculator/presentation/providers/calculator_provider.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -60,6 +62,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   Future<void> _proceedToNextStep() async {
+    // Original logic for proceeding (validation happens inside build methods)
     await _animationController.reverse();
 
     setState(() {
@@ -68,9 +71,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           _currentStep = 'personal_info';
           break;
         case 'personal_info':
+          // Validation check was originally inside the button press in _buildPersonalInfoStep
+          // Proceeding here relies on that button calling this method *after* validation.
           _currentStep = 'body_measurements';
           break;
         case 'body_measurements':
+          // Validation check was originally inside the button press in _buildBodyMeasurementsStep
           _currentStep = 'fitness_goals';
           break;
         case 'fitness_goals':
@@ -80,8 +86,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           _currentStep = 'complete';
           break;
         case 'complete':
-          _finalizeOnboarding();
-          return;
+          // This case was calling _finalizeOnboarding in the original code,
+          // but it's better practice for the 'Complete' button to call it.
+          // Keeping original logic flow for now, but the button in
+          // _buildCompletionStep also calls _finalizeOnboarding.
+          // This might lead to double execution if not careful.
+          // For minimal change, let's assume the button is the primary trigger.
+          // _finalizeOnboarding(); // Commenting out based on original structure where button calls it
+          return; // Stay on complete step until button press
       }
     });
 
@@ -94,8 +106,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     // Capture all provider references first
     final userInfoNotifier = ref.read(userInfoProvider.notifier);
     final prefs = ref.read(sharedPreferencesProvider);
+    final calculatorNotifier = ref.read(calculatorProvider.notifier);
+    final profileNotifier = ref.read(profileProvider.notifier);
 
-    // Create user profile from collected data
+    // Create user profile from collected data (using original defaults logic)
     final userInfo = UserInfo(
       name: _nameController.text,
       age: int.tryParse(_ageController.text) ?? 30,
@@ -112,10 +126,88 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       // Save user profile
       await userInfoNotifier.saveUserInfo(userInfo);
 
+      // Set the calculator values based on user profile
+      calculatorNotifier.weight = userInfo.weight ?? 70;
+      calculatorNotifier.feet = userInfo.feet ?? 5;
+      calculatorNotifier.inches = userInfo.inches ?? 10;
+      calculatorNotifier.age = userInfo.age ?? 30;
+      calculatorNotifier.sex = userInfo.sex;
+
+      // Convert activity level enum to string (original switch)
+      String activityLevelString;
+      switch (userInfo.activityLevel) {
+        case ActivityLevel.sedentary:
+          activityLevelString = 'sedentary';
+          break;
+        case ActivityLevel.lightlyActive:
+          activityLevelString = 'lightly_active';
+          break;
+        case ActivityLevel.moderatelyActive:
+          activityLevelString = 'moderately_active';
+          break;
+        case ActivityLevel.veryActive:
+          activityLevelString = 'very_active';
+          break;
+        case ActivityLevel.extraActive:
+          activityLevelString = 'extra_active';
+          break;
+        // Original code didn't have a default case here
+      }
+      calculatorNotifier.activityLevel = activityLevelString;
+
+      // Convert goal enum to string (original switch with default)
+      String goalString;
+      switch (userInfo.goal) {
+        case Goal.lose:
+          goalString = 'lose';
+          break;
+        case Goal.maintain:
+          goalString = 'maintain';
+          break;
+        case Goal.gain:
+          goalString = 'gain';
+          break;
+      }
+      calculatorNotifier.goal = goalString;
+
+      // Calculate macros
+      final macroResult = calculatorNotifier.calculateMacros();
+
+      // Save the calculated macros as the default
+      if (macroResult != null) {
+        // Save the macro result with a timestamp
+        final macroWithTimestamp = macroResult.copyWith(
+          timestamp: DateTime.now(),
+        );
+        await profileNotifier.saveMacro(macroWithTimestamp);
+
+        // Reload saved macros to get the updated list with IDs
+        await profileNotifier.loadSavedMacros();
+
+        // Get the current state of saved macros
+        final savedMacrosState = ref.read(profileProvider);
+
+        final macrosList = savedMacrosState.value;
+        if (savedMacrosState.hasValue &&
+            macrosList != null &&
+            macrosList.isNotEmpty) {
+          // Get the most recently saved macro (should be the one we just added)
+          final lastSavedMacro = macrosList.last;
+
+          // Set it as the default if it has an ID
+          if (lastSavedMacro.id != null) {
+            await profileNotifier.setDefaultMacro(lastSavedMacro.id!);
+          }
+        }
+      }
+
+      // Save the goal for future reference
+      await calculatorNotifier.saveGoal(goalString);
+
       // Mark onboarding as complete
       await prefs.setBool('onboarding_complete', true);
 
-      // Check if widget is still mounted before navigating
+      // Check if widget is still mounted before navigating (original check)
       if (mounted && context.mounted) {
         context.go('/');
       }
@@ -127,7 +219,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         );
       }
     }
-  }
+  } // <<< Closing brace for _finalizeOnboarding method
+
+  // --- Methods moved outside _finalizeOnboarding ---
+  // These methods are now correctly placed within the class scope.
 
   String _getInstructionsForCurrentStep() {
     switch (_currentStep) {
@@ -148,57 +243,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Welcome to Macro Masher'),
-        centerTitle: true,
-        backgroundColor: colorScheme.surfaceContainerHighest,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: FadeTransition(
-            opacity: _fadeAnimation,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Progress indicator
-                if (_currentStep != 'welcome' && _currentStep != 'complete')
-                  LinearProgressIndicator(
-                    value: _getProgressValue(),
-                    backgroundColor: colorScheme.surfaceContainerHighest,
-                    color: colorScheme.primary,
-                  ),
-                const SizedBox(height: 24),
-                // Instructions
-                Text(
-                  _getInstructionsForCurrentStep(),
-                  style: textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                // Content based on current step
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: _buildContentForCurrentStep(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   double _getProgressValue() {
     switch (_currentStep) {
       case 'personal_info':
@@ -211,70 +255,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         return 0.8;
       case 'complete':
         return 1.0;
-      default:
+      default: // Includes 'welcome'
         return 0.0;
     }
-  }
-
-  Widget _buildContentForCurrentStep() {
-    switch (_currentStep) {
-      case 'welcome':
-        return _buildWelcomeStep();
-      case 'personal_info':
-        return _buildPersonalInfoStep();
-      case 'body_measurements':
-        return _buildBodyMeasurementsStep();
-      case 'fitness_goals':
-        return _buildFitnessGoalsStep();
-      case 'activity_level':
-        return _buildActivityLevelStep();
-      case 'complete':
-        return _buildCompletionStep();
-      default:
-        return const SizedBox.shrink();
-    }
-  }
-
-  Widget _buildWelcomeStep() {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      children: [
-        Icon(Icons.fitness_center, size: 100, color: colorScheme.primary),
-        const SizedBox(height: 32),
-        Text(
-          'Macro Masher',
-          style: textTheme.displayMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: colorScheme.primary,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Your personalized nutrition assistant',
-          style: textTheme.titleLarge?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 48),
-        Text(
-          'We\'ll help you calculate your ideal macros and generate meal plans tailored to your goals.',
-          style: textTheme.bodyLarge,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 64),
-        FilledButton(
-          onPressed: _proceedToNextStep,
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
-          ),
-          child: const Text('Get Started'),
-        ),
-      ],
-    );
   }
 
   Widget _buildPersonalInfoStep() {
@@ -341,6 +324,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           Center(
             child: FilledButton(
               onPressed: () {
+                // Original validation logic placement
                 if (_personalInfoFormKey.currentState!.validate()) {
                   _proceedToNextStep();
                 }
@@ -368,7 +352,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           TextFormField(
             controller: _weightController,
             decoration: const InputDecoration(
-              labelText: 'Weight (lbs)',
+              labelText: 'Weight (lbs)', // Original label
               prefixIcon: Icon(Icons.monitor_weight),
             ),
             keyboardType: TextInputType.number,
@@ -428,6 +412,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           Center(
             child: FilledButton(
               onPressed: () {
+                // Original validation logic placement
                 if (_measurementsFormKey.currentState!.validate()) {
                   _proceedToNextStep();
                 }
@@ -455,6 +440,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         Text('What is your primary fitness goal?', style: textTheme.titleLarge),
         const SizedBox(height: 24),
         _buildGoalOption(
+          // Calls helper below
           goal: Goal.lose,
           title: 'Lose Weight',
           icon: Icons.trending_down,
@@ -477,7 +463,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         const SizedBox(height: 48),
         Center(
           child: FilledButton(
-            onPressed: _proceedToNextStep,
+            onPressed: _proceedToNextStep, // No form validation on this step
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
             ),
@@ -488,6 +474,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     );
   }
 
+  // Helper for goal options (was correctly placed in original relative to others)
   Widget _buildGoalOption({
     required Goal goal,
     required String title,
@@ -523,7 +510,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               icon,
               color:
                   isSelected
-                      ? colorScheme.primary
+                      ? colorScheme
+                          .primary // Original color logic
                       : colorScheme.onSurfaceVariant,
               size: 28,
             ),
@@ -535,6 +523,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   Text(
                     title,
                     style: TextStyle(
+                      // Original TextStyle
                       fontWeight: FontWeight.bold,
                       color:
                           isSelected
@@ -545,6 +534,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   Text(
                     description,
                     style: TextStyle(
+                      // Original TextStyle
                       fontSize: 12,
                       color:
                           isSelected
@@ -574,6 +564,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           style: textTheme.titleLarge,
         ),
         const SizedBox(height: 24),
+        // Original list of options (did not include extraActive UI)
         _buildActivityOption(
           level: ActivityLevel.sedentary,
           title: 'Sedentary',
@@ -601,10 +592,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           description: 'Hard exercise 6-7 days per week',
           icon: Icons.fitness_center,
         ),
+        // Note: Original code did not have a UI element for extraActive
         const SizedBox(height: 48),
         Center(
           child: FilledButton(
-            onPressed: _proceedToNextStep,
+            onPressed: _proceedToNextStep, // No form validation on this step
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
             ),
@@ -615,6 +607,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     );
   }
 
+  // Helper for activity options (was correctly placed in original relative to others)
   Widget _buildActivityOption({
     required ActivityLevel level,
     required String title,
@@ -650,7 +643,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               icon,
               color:
                   isSelected
-                      ? colorScheme.primary
+                      ? colorScheme
+                          .primary // Original color logic
                       : colorScheme.onSurfaceVariant,
               size: 28,
             ),
@@ -662,6 +656,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   Text(
                     title,
                     style: TextStyle(
+                      // Original TextStyle
                       fontWeight: FontWeight.bold,
                       color:
                           isSelected
@@ -672,6 +667,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   Text(
                     description,
                     style: TextStyle(
+                      // Original TextStyle
                       fontSize: 12,
                       color:
                           isSelected
@@ -714,13 +710,129 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         ),
         const SizedBox(height: 48),
         FilledButton(
-          onPressed: _finalizeOnboarding,
+          onPressed: _finalizeOnboarding, // Button triggers final action
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
           ),
           child: const Text('Go to Dashboard'),
         ),
       ],
+    );
+  }
+
+  Widget _buildWelcomeStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      // Original alignment
+      children: [
+        Icon(Icons.fitness_center, size: 100, color: colorScheme.primary),
+        const SizedBox(height: 32),
+        Text(
+          'Macro Masher',
+          style: textTheme.displayMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Your personalized nutrition assistant',
+          style: textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 48),
+        Text(
+          'We\'ll help you calculate your ideal macros and generate meal plans tailored to your goals.',
+          style: textTheme.bodyLarge,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 64),
+        FilledButton(
+          onPressed: _proceedToNextStep, // No validation needed
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+          ),
+          child: const Text('Get Started'),
+        ),
+      ],
+    );
+  }
+
+  // --- Main Build Method ---
+  Widget _buildContentForCurrentStep() {
+    switch (_currentStep) {
+      case 'welcome':
+        return _buildWelcomeStep();
+      case 'personal_info':
+        return _buildPersonalInfoStep();
+      case 'body_measurements':
+        return _buildBodyMeasurementsStep();
+      case 'fitness_goals':
+        return _buildFitnessGoalsStep();
+      case 'activity_level':
+        return _buildActivityLevelStep();
+      case 'complete':
+        return _buildCompletionStep();
+      default:
+        return const SizedBox.shrink(); // Original fallback
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Welcome to Macro Masher'), // Original title
+        centerTitle: true,
+        backgroundColor: colorScheme.surfaceContainerHighest,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: FadeTransition(
+            // Original FadeTransition
+            opacity: _fadeAnimation,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Progress indicator (Original placement and condition)
+                if (_currentStep != 'welcome' && _currentStep != 'complete')
+                  LinearProgressIndicator(
+                    value: _getProgressValue(),
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                    color: colorScheme.primary,
+                  ),
+                const SizedBox(height: 24), // Original spacing
+                // Instructions (Original placement)
+                Text(
+                  _getInstructionsForCurrentStep(),
+                  style: textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32), // Original spacing
+                // Content based on current step
+                Expanded(
+                  child: SingleChildScrollView(
+                    // Added SingleChildScrollView for safety, wasn't in original but good practice
+                    child: _buildContentForCurrentStep(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
