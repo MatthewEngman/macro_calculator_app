@@ -216,22 +216,22 @@ class DashboardScreen extends ConsumerWidget {
                     _buildMacroRow(
                       context,
                       'Calories',
-                      macroResult.calories.toStringAsFixed(0),
+                      macroResult.calories.round().toString(),
                     ),
                     _buildMacroRow(
                       context,
                       'Protein',
-                      macroResult.protein.toStringAsFixed(1),
+                      macroResult.protein.round().toString(),
                     ),
                     _buildMacroRow(
                       context,
                       'Carbohydrates',
-                      macroResult.carbs.toStringAsFixed(1),
+                      macroResult.carbs.round().toString(),
                     ),
                     _buildMacroRow(
                       context,
                       'Fat',
-                      macroResult.fat.toStringAsFixed(1),
+                      macroResult.fat.round().toString(),
                     ),
                   ],
                 );
@@ -290,7 +290,7 @@ class DashboardScreen extends ConsumerWidget {
               context,
               'Meal Plans',
               Icons.restaurant_menu,
-              () => context.push('/meal-plan'),
+              () => context.push('/meal-plans'),
             ),
             _buildFeatureCard(
               context,
@@ -302,7 +302,7 @@ class DashboardScreen extends ConsumerWidget {
               context,
               'Settings',
               Icons.settings,
-              () => context.push('/settings'),
+              () => context.push('/profile'),
             ),
           ],
         ),
