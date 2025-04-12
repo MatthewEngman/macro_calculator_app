@@ -9,6 +9,7 @@ class MealPlan {
   final String plan;
   final String feedback;
   final DateTime timestamp;
+  final DateTime? lastModified;
 
   MealPlan({
     this.id,
@@ -19,6 +20,7 @@ class MealPlan {
     required this.plan,
     this.feedback = '',
     DateTime? timestamp,
+    this.lastModified,
   }) : timestamp = timestamp ?? DateTime.now();
 
   Map<String, dynamic> toMap() {
@@ -31,6 +33,7 @@ class MealPlan {
       'plan': plan,
       'feedback': feedback,
       'timestamp': timestamp.toIso8601String(),
+      'lastModified': lastModified?.toIso8601String(),
     };
   }
 
@@ -44,6 +47,10 @@ class MealPlan {
       plan: map['plan'] as String,
       feedback: map['feedback'] as String? ?? '',
       timestamp: DateTime.parse(map['timestamp'] as String),
+      lastModified:
+          map['lastModified'] != null
+              ? DateTime.parse(map['lastModified'] as String)
+              : null,
     );
   }
 
@@ -56,6 +63,7 @@ class MealPlan {
     String? plan,
     String? feedback,
     DateTime? timestamp,
+    DateTime? lastModified,
   }) {
     return MealPlan(
       id: id ?? this.id,
@@ -66,11 +74,12 @@ class MealPlan {
       plan: plan ?? this.plan,
       feedback: feedback ?? this.feedback,
       timestamp: timestamp ?? this.timestamp,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 
   @override
   String toString() {
-    return 'MealPlan(id: $id, diet: $diet, goal: $goal, macros: $macros, ingredients: $ingredients, plan: $plan, feedback: $feedback, timestamp: $timestamp)';
+    return 'MealPlan(id: $id, diet: $diet, goal: $goal, macros: $macros, ingredients: $ingredients, plan: $plan, feedback: $feedback, timestamp: $timestamp, lastModified: $lastModified)';
   }
 }

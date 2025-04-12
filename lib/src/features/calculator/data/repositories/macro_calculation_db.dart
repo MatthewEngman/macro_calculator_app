@@ -17,6 +17,7 @@ class MacroCalculationDB {
   static const String columnIsDefault = 'is_default';
   static const String columnName = 'name';
   static const String columnFirebaseUserId = 'firebase_user_id';
+  static const String columnLastModified = 'last_modified';
 
   static Future<void> createTable(Database db) async {
     await db.execute('''
@@ -32,6 +33,7 @@ class MacroCalculationDB {
         $columnIsDefault INTEGER NOT NULL DEFAULT 0,
         $columnName TEXT,
         $columnFirebaseUserId TEXT,
+        $columnLastModified INTEGER,
         FOREIGN KEY($columnUserId) REFERENCES users(id) ON DELETE CASCADE
       )
     ''');
@@ -48,6 +50,9 @@ class MacroCalculationDB {
     final timestamp =
         result.timestamp?.millisecondsSinceEpoch ??
         DateTime.now().millisecondsSinceEpoch;
+    final lastModified =
+        result.lastModified?.millisecondsSinceEpoch ??
+        DateTime.now().millisecondsSinceEpoch;
 
     final Map<String, dynamic> row = {
       columnId: id,
@@ -61,6 +66,7 @@ class MacroCalculationDB {
       columnIsDefault: result.isDefault ? 1 : 0,
       columnName: result.name,
       columnFirebaseUserId: firebaseUserId,
+      columnLastModified: lastModified,
     };
 
     await db.insert(
@@ -70,6 +76,73 @@ class MacroCalculationDB {
     );
 
     return id;
+  }
+
+  static Future<bool> updateCalculation(
+    MacroResult result, {
+    String? userId,
+    String? firebaseUserId,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+
+    if (result.id == null) {
+      throw ArgumentError('Cannot update a calculation without an ID');
+    }
+
+    // First check if the record exists and get its current lastModified value
+    final existingRecord = await getCalculationById(result.id!);
+    if (existingRecord == null) {
+      // Record doesn't exist, insert it instead
+      await insertCalculation(
+        result,
+        userId: userId,
+        firebaseUserId: firebaseUserId,
+      );
+      return true;
+    }
+
+    // If the existing record has a newer lastModified timestamp, don't update
+    final existingLastModified = existingRecord.lastModified ?? DateTime(1970);
+    final newLastModified = result.lastModified ?? DateTime.now();
+
+    if (existingLastModified.isAfter(newLastModified)) {
+      // Existing record is newer, don't update
+      return false;
+    }
+
+    final timestamp =
+        result.timestamp?.millisecondsSinceEpoch ??
+        DateTime.now().millisecondsSinceEpoch;
+    final lastModified = DateTime.now().millisecondsSinceEpoch;
+
+    final Map<String, dynamic> row = {
+      columnCalories: result.calories,
+      columnProtein: result.protein,
+      columnCarbs: result.carbs,
+      columnFat: result.fat,
+      columnCalculationType: result.calculationType,
+      columnTimestamp: timestamp,
+      columnIsDefault: result.isDefault ? 1 : 0,
+      columnName: result.name,
+      columnLastModified: lastModified,
+    };
+
+    // Only set user IDs if they are provided
+    if (userId != null) {
+      row[columnUserId] = userId;
+    }
+    if (firebaseUserId != null) {
+      row[columnFirebaseUserId] = firebaseUserId;
+    }
+
+    final rowsAffected = await db.update(
+      tableName,
+      row,
+      where: '$columnId = ?',
+      whereArgs: [result.id],
+    );
+
+    return rowsAffected > 0;
   }
 
   static Future<List<MacroResult>> getAllCalculations({
@@ -110,6 +183,12 @@ class MacroCalculationDB {
         ),
         isDefault: maps[i][columnIsDefault] == 1,
         name: maps[i][columnName],
+        lastModified:
+            maps[i][columnLastModified] != null
+                ? DateTime.fromMillisecondsSinceEpoch(
+                  maps[i][columnLastModified],
+                )
+                : null,
       );
     });
   }
@@ -135,6 +214,10 @@ class MacroCalculationDB {
       timestamp: DateTime.fromMillisecondsSinceEpoch(maps[0][columnTimestamp]),
       isDefault: maps[0][columnIsDefault] == 1,
       name: maps[0][columnName],
+      lastModified:
+          maps[0][columnLastModified] != null
+              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
+              : null,
     );
   }
 
@@ -180,6 +263,10 @@ class MacroCalculationDB {
       timestamp: DateTime.fromMillisecondsSinceEpoch(maps[0][columnTimestamp]),
       isDefault: maps[0][columnIsDefault] == 1,
       name: maps[0][columnName],
+      lastModified:
+          maps[0][columnLastModified] != null
+              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
+              : null,
     );
   }
 
@@ -194,25 +281,37 @@ class MacroCalculationDB {
     if (userId != null) {
       await db.update(
         tableName,
-        {columnIsDefault: 0},
+        {
+          columnIsDefault: 0,
+          columnLastModified: DateTime.now().millisecondsSinceEpoch,
+        },
         where: '$columnUserId = ?',
         whereArgs: [userId],
       );
     } else if (firebaseUserId != null) {
       await db.update(
         tableName,
-        {columnIsDefault: 0},
+        {
+          columnIsDefault: 0,
+          columnLastModified: DateTime.now().millisecondsSinceEpoch,
+        },
         where: '$columnFirebaseUserId = ?',
         whereArgs: [firebaseUserId],
       );
     } else {
-      await db.update(tableName, {columnIsDefault: 0});
+      await db.update(tableName, {
+        columnIsDefault: 0,
+        columnLastModified: DateTime.now().millisecondsSinceEpoch,
+      });
     }
 
     // Then set the new default
     await db.update(
       tableName,
-      {columnIsDefault: 1},
+      {
+        columnIsDefault: 1,
+        columnLastModified: DateTime.now().millisecondsSinceEpoch,
+      },
       where: '$columnId = ?',
       whereArgs: [id],
     );

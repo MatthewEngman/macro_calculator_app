@@ -1,4 +1,6 @@
 // lib/src/core/persistence/data_sync_manager.dart
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -10,14 +12,21 @@ import '../../features/profile/data/repositories/user_db.dart';
 import '../../features/calculator/data/repositories/macro_calculation_db.dart';
 import '../../features/meal_plan/data/meal_plan_db.dart';
 
+enum SyncStatus { idle, syncing, synced, offline, error, notAuthenticated }
+
 class DataSyncManager {
   final firebase_auth.FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final Connectivity _connectivity;
 
+  final _syncStatusController = StreamController<SyncStatus>.broadcast();
+  Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
+
+  SyncStatus _currentStatus = SyncStatus.idle;
+  SyncStatus get currentStatus => _currentStatus;
+
   DataSyncManager(this._auth, this._firestore, this._connectivity);
 
-  // Helper method to get the current user ID
   String? get _userId => _auth.currentUser?.uid;
   String get _requiredUserId {
     final userId = _userId;
@@ -27,24 +36,30 @@ class DataSyncManager {
     return userId;
   }
 
-  // Check if network is available
+  void _updateSyncStatus(SyncStatus status) {
+    _currentStatus = status;
+    _syncStatusController.add(status);
+  }
+
   Future<bool> isNetworkAvailable() async {
     final connectivityResult = await _connectivity.checkConnectivity();
     return connectivityResult != ConnectivityResult.none;
   }
 
-  // Sync user profiles
   Future<void> syncUserProfiles() async {
     if (_userId == null) return;
-    if (!await isNetworkAvailable()) return;
+    if (!await isNetworkAvailable()) {
+      _updateSyncStatus(SyncStatus.offline);
+      return;
+    }
 
     try {
-      // Get local user profiles
+      _updateSyncStatus(SyncStatus.syncing);
+
       final localProfiles = await UserDB.getAllUsers(
         firebaseUserId: _requiredUserId,
       );
 
-      // Get remote user profiles
       final remoteProfilesSnapshot =
           await _firestore
               .collection('users')
@@ -52,30 +67,43 @@ class DataSyncManager {
               .collection('user_infos')
               .get();
 
-      // Create a map of remote profiles by ID for easier lookup
       final remoteProfilesMap = {
         for (var doc in remoteProfilesSnapshot.docs)
           doc.id: UserInfo.fromJson({...doc.data(), 'id': doc.id}),
       };
 
-      // Sync local to remote
       for (var localProfile in localProfiles) {
         final profileId = localProfile.id!;
         final remoteProfile = remoteProfilesMap[profileId];
 
         if (remoteProfile == null) {
-          // Profile exists locally but not remotely - upload it
           await _firestore
               .collection('users')
               .doc(_userId)
               .collection('user_infos')
               .doc(profileId)
-              .set(localProfile.toJson());
+              .set({
+                ...localProfile.toJson(),
+                'lastModified': FieldValue.serverTimestamp(),
+              });
+        } else {
+          final localTimestamp = localProfile.lastModified ?? DateTime(1970);
+          final remoteTimestamp = remoteProfile.lastModified ?? DateTime(1970);
+
+          if (localTimestamp.isAfter(remoteTimestamp)) {
+            await _firestore
+                .collection('users')
+                .doc(_userId)
+                .collection('user_infos')
+                .doc(profileId)
+                .set({
+                  ...localProfile.toJson(),
+                  'lastModified': FieldValue.serverTimestamp(),
+                });
+          }
         }
-        // If both exist, we could implement a last-modified timestamp to determine which to keep
       }
 
-      // Sync remote to local
       for (var entry in remoteProfilesMap.entries) {
         final profileId = entry.key;
         final remoteProfile = entry.value;
@@ -92,27 +120,38 @@ class DataSyncManager {
         );
 
         if (localProfile.id == null) {
-          // Profile exists remotely but not locally - download it
           await UserDB.insertUser(remoteProfile, _requiredUserId);
+        } else {
+          final localTimestamp = localProfile.lastModified ?? DateTime(1970);
+          final remoteTimestamp = remoteProfile.lastModified ?? DateTime(1970);
+
+          if (remoteTimestamp.isAfter(localTimestamp)) {
+            await UserDB.updateUser(remoteProfile, _requiredUserId);
+          }
         }
       }
+
+      _updateSyncStatus(SyncStatus.synced);
     } catch (e) {
       print('Error syncing user profiles: $e');
+      _updateSyncStatus(SyncStatus.error);
     }
   }
 
-  // Sync macro calculations
   Future<void> syncMacroCalculations() async {
     if (_userId == null) return;
-    if (!await isNetworkAvailable()) return;
+    if (!await isNetworkAvailable()) {
+      _updateSyncStatus(SyncStatus.offline);
+      return;
+    }
 
     try {
-      // Get local calculations
+      _updateSyncStatus(SyncStatus.syncing);
+
       final localCalculations = await MacroCalculationDB.getAllCalculations(
         firebaseUserId: _userId,
       );
 
-      // Get remote calculations
       final remoteCalculationsSnapshot =
           await _firestore
               .collection('users')
@@ -120,7 +159,6 @@ class DataSyncManager {
               .collection('macro_calculations')
               .get();
 
-      // Create a map of remote calculations by ID for easier lookup
       final remoteCalculationsMap = {
         for (var doc in remoteCalculationsSnapshot.docs)
           doc.id: MacroResult(
@@ -138,16 +176,18 @@ class DataSyncManager {
                     : DateTime.now(),
             isDefault: doc.data()['isDefault'] ?? false,
             name: doc.data()['name'],
+            lastModified:
+                doc.data()['lastModified'] != null
+                    ? (doc.data()['lastModified'] as Timestamp).toDate()
+                    : null,
           ),
       };
 
-      // Sync local to remote
       for (var localCalc in localCalculations) {
         final calcId = localCalc.id!;
         final remoteCalc = remoteCalculationsMap[calcId];
 
         if (remoteCalc == null) {
-          // Calculation exists locally but not remotely - upload it
           await _firestore
               .collection('users')
               .doc(_userId)
@@ -162,11 +202,33 @@ class DataSyncManager {
                 'timestamp': localCalc.timestamp?.millisecondsSinceEpoch,
                 'isDefault': localCalc.isDefault,
                 'name': localCalc.name,
+                'lastModified': FieldValue.serverTimestamp(),
               });
+        } else {
+          final localTimestamp = localCalc.lastModified ?? DateTime(1970);
+          final remoteTimestamp = remoteCalc.lastModified ?? DateTime(1970);
+
+          if (localTimestamp.isAfter(remoteTimestamp)) {
+            await _firestore
+                .collection('users')
+                .doc(_userId)
+                .collection('macro_calculations')
+                .doc(calcId)
+                .set({
+                  'calories': localCalc.calories,
+                  'protein': localCalc.protein,
+                  'carbs': localCalc.carbs,
+                  'fat': localCalc.fat,
+                  'calculationType': localCalc.calculationType,
+                  'timestamp': localCalc.timestamp?.millisecondsSinceEpoch,
+                  'isDefault': localCalc.isDefault,
+                  'name': localCalc.name,
+                  'lastModified': FieldValue.serverTimestamp(),
+                });
+          }
         }
       }
 
-      // Sync remote to local
       for (var entry in remoteCalculationsMap.entries) {
         final calcId = entry.key;
         final remoteCalc = entry.value;
@@ -184,28 +246,42 @@ class DataSyncManager {
         );
 
         if (localCalc.id == null) {
-          // Calculation exists remotely but not locally - download it
           await MacroCalculationDB.insertCalculation(
             remoteCalc,
             firebaseUserId: _userId,
           );
+        } else {
+          final localTimestamp = localCalc.lastModified ?? DateTime(1970);
+          final remoteTimestamp = remoteCalc.lastModified ?? DateTime(1970);
+
+          if (remoteTimestamp.isAfter(localTimestamp)) {
+            await MacroCalculationDB.updateCalculation(
+              remoteCalc,
+              firebaseUserId: _userId,
+            );
+          }
         }
       }
+
+      _updateSyncStatus(SyncStatus.synced);
     } catch (e) {
       print('Error syncing macro calculations: $e');
+      _updateSyncStatus(SyncStatus.error);
     }
   }
 
-  // Sync meal plans
   Future<void> syncMealPlans() async {
     if (_userId == null) return;
-    if (!await isNetworkAvailable()) return;
+    if (!await isNetworkAvailable()) {
+      _updateSyncStatus(SyncStatus.offline);
+      return;
+    }
 
     try {
-      // Get local meal plans
+      _updateSyncStatus(SyncStatus.syncing);
+
       final localMealPlans = await MealPlanDB.getAllPlans();
 
-      // Get remote meal plans
       final remoteMealPlansSnapshot =
           await _firestore
               .collection('users')
@@ -213,32 +289,50 @@ class DataSyncManager {
               .collection('meal_plans')
               .get();
 
-      // Create a map of remote meal plans by ID for easier lookup
       final remoteMealPlansMap = {
         for (var doc in remoteMealPlansSnapshot.docs)
           doc.data()['id'].toString(): MealPlan.fromMap({
             ...doc.data(),
             'id': doc.data()['id'],
+            'lastModified':
+                doc.data()['lastModified'] != null
+                    ? (doc.data()['lastModified'] as Timestamp).toDate()
+                    : null,
           }),
       };
 
-      // Sync local to remote
       for (var localPlan in localMealPlans) {
         final planId = localPlan.id.toString();
         final remotePlan = remoteMealPlansMap[planId];
 
         if (remotePlan == null && localPlan.id != null) {
-          // Meal plan exists locally but not remotely - upload it
+          final planMap = localPlan.toMap();
+          planMap['lastModified'] = FieldValue.serverTimestamp();
+
           await _firestore
               .collection('users')
               .doc(_userId)
               .collection('meal_plans')
               .doc(planId)
-              .set(localPlan.toMap());
+              .set(planMap);
+        } else if (remotePlan != null && localPlan.id != null) {
+          final localTimestamp = localPlan.lastModified ?? DateTime(1970);
+          final remoteTimestamp = remotePlan.lastModified ?? DateTime(1970);
+
+          if (localTimestamp.isAfter(remoteTimestamp)) {
+            final planMap = localPlan.toMap();
+            planMap['lastModified'] = FieldValue.serverTimestamp();
+
+            await _firestore
+                .collection('users')
+                .doc(_userId)
+                .collection('meal_plans')
+                .doc(planId)
+                .set(planMap);
+          }
         }
       }
 
-      // Sync remote to local
       for (var entry in remoteMealPlansMap.entries) {
         final planId = int.tryParse(entry.key);
         final remotePlan = entry.value;
@@ -257,20 +351,55 @@ class DataSyncManager {
           );
 
           if (localPlan.id == null) {
-            // Meal plan exists remotely but not locally - download it
             await MealPlanDB.insertMealPlan(remotePlan);
+          } else {
+            final localTimestamp = localPlan.lastModified ?? DateTime(1970);
+            final remoteTimestamp = remotePlan.lastModified ?? DateTime(1970);
+
+            if (remoteTimestamp.isAfter(localTimestamp)) {
+              await MealPlanDB.updateMealPlan(remotePlan);
+            }
           }
         }
       }
+
+      _updateSyncStatus(SyncStatus.synced);
     } catch (e) {
       print('Error syncing meal plans: $e');
+      _updateSyncStatus(SyncStatus.error);
     }
   }
 
-  // Sync all data
   Future<void> syncAllData() async {
-    await syncUserProfiles();
-    await syncMacroCalculations();
-    await syncMealPlans();
+    if (_currentStatus == SyncStatus.syncing) return;
+
+    if (!await isNetworkAvailable()) {
+      _updateSyncStatus(SyncStatus.offline);
+      return;
+    }
+
+    if (_auth.currentUser == null) {
+      _updateSyncStatus(SyncStatus.notAuthenticated);
+      return;
+    }
+
+    _updateSyncStatus(SyncStatus.syncing);
+
+    try {
+      await syncUserProfiles();
+      await syncMacroCalculations();
+      await syncMealPlans();
+
+      _updateSyncStatus(SyncStatus.synced);
+
+      // After a delay, set back to idle
+      Future.delayed(const Duration(seconds: 2), () {
+        if (_currentStatus == SyncStatus.synced) {
+          _updateSyncStatus(SyncStatus.idle);
+        }
+      });
+    } catch (e) {
+      _updateSyncStatus(SyncStatus.error);
+    }
   }
 }

@@ -12,6 +12,7 @@ class UserInfo {
   final String? id;
   final bool isDefault;
   final String? name;
+  final DateTime? lastModified;
 
   UserInfo({
     this.weight,
@@ -25,6 +26,7 @@ class UserInfo {
     this.id,
     this.isDefault = false,
     this.name,
+    this.lastModified,
   });
 
   UserInfo copyWith({
@@ -39,6 +41,7 @@ class UserInfo {
     String? id,
     bool? isDefault,
     String? name,
+    DateTime? lastModified,
   }) {
     return UserInfo(
       weight: weight ?? this.weight,
@@ -52,6 +55,7 @@ class UserInfo {
       id: id ?? this.id,
       isDefault: isDefault ?? this.isDefault,
       name: name ?? this.name,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 
@@ -68,6 +72,7 @@ class UserInfo {
       'id': id,
       'isDefault': isDefault,
       'name': name,
+      'lastModified': lastModified?.millisecondsSinceEpoch,
     };
   }
 
@@ -84,6 +89,10 @@ class UserInfo {
       id: json['id'],
       isDefault: json['isDefault'] ?? false,
       name: json['name'],
+      lastModified:
+          json['lastModified'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(json['lastModified'])
+              : null,
     );
   }
 }

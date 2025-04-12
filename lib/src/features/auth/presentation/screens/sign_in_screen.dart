@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
-import 'email_auth_screen.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -138,72 +137,34 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 textAlign: TextAlign.center,
               ),
               const Spacer(),
-              // Error message
-              if (_errorMessage != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Text(
-                    _errorMessage!,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.error,
+              // Sign in with Google button
+              _isGoogleLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton.icon(
+                    onPressed: _signInWithGoogle,
+                    icon: Icon(
+                      Icons.g_mobiledata,
+                      size: 24.0,
+                      color: Colors.blue,
                     ),
-                    textAlign: TextAlign.center,
+                    label: const Text(
+                      'Sign in with Google',
+                      style: TextStyle(
+                        fontFamily: 'Roboto',
+                        color: Colors.black87,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
-                ),
-              // Google Sign-In button
-              Container(
-                height: 50,
-                margin: const EdgeInsets.only(bottom: 16),
-                child:
-                    _isGoogleLoading
-                        ? Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.primary,
-                          ),
-                        )
-                        : ElevatedButton.icon(
-                          onPressed: _signInWithGoogle,
-                          icon: Image.network(
-                            'https://developers.google.com/identity/images/g-logo.png',
-                            height: 24.0,
-                          ),
-                          label: const Text(
-                            'Sign in with Google',
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.black87,
-                            ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black87,
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        ),
-              ),
               const SizedBox(height: 16),
-              // Email sign-in button
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const EmailAuthScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.email),
-                label: const Text('Sign in with Email'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: textTheme.titleMedium,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Sign in button
+              // Sign in anonymously button
               FilledButton.icon(
                 onPressed: _isLoading ? null : _signInAnonymously,
                 icon:
@@ -223,28 +184,64 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   textStyle: textTheme.titleMedium,
                 ),
               ),
-              const SizedBox(height: 16),
-              // Info about guest accounts
+              const SizedBox(height: 24),
+              // Enhanced info about guest accounts
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colorScheme.outlineVariant),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      color: colorScheme.primary,
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Guest data is only stored on this device. Create an account to save your data securely.',
-                        style: textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: colorScheme.primary,
+                          size: 24,
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'About Guest Access',
+                            style: textTheme.titleMedium?.copyWith(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '• Your data will be stored on this device',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '• If you uninstall the app, your data may be lost',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '• Sign in with Google to keep your data secure across devices',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'You can link your guest account to Google later in the profile settings.',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.primary,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],

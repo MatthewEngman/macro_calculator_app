@@ -4,10 +4,11 @@ class MacroResult {
   final double protein;
   final double carbs;
   final double fat;
-  final String? calculationType; // Add this field
+  final String? calculationType;
   final DateTime? timestamp;
   final bool isDefault;
-  final String? name; // Add this field
+  final String? name;
+  final DateTime? lastModified;
 
   MacroResult({
     this.id,
@@ -15,23 +16,24 @@ class MacroResult {
     required this.protein,
     required this.carbs,
     required this.fat,
-    this.calculationType, // Add this parameter
+    this.calculationType,
     this.timestamp,
     this.isDefault = false,
-    this.name, // Add this parameter
+    this.name,
+    this.lastModified,
   });
 
-  // Update copyWith method as well
   MacroResult copyWith({
     String? id,
     double? calories,
     double? protein,
     double? carbs,
     double? fat,
-    String? calculationType, // Add this parameter
+    String? calculationType,
     DateTime? timestamp,
     bool? isDefault,
-    String? name, // Add this parameter
+    String? name,
+    DateTime? lastModified,
   }) {
     return MacroResult(
       id: id ?? this.id,
@@ -39,10 +41,11 @@ class MacroResult {
       protein: protein ?? this.protein,
       carbs: carbs ?? this.carbs,
       fat: fat ?? this.fat,
-      calculationType: calculationType ?? this.calculationType, // Add this
+      calculationType: calculationType ?? this.calculationType,
       timestamp: timestamp ?? this.timestamp,
       isDefault: isDefault ?? this.isDefault,
-      name: name ?? this.name, // Add this
+      name: name ?? this.name,
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 }

@@ -28,7 +28,11 @@ class UserInfoRepositorySQLiteImpl implements UserInfoRepository {
   @override
   Future<void> saveUserInfo(UserInfo userInfo) async {
     final id = userInfo.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-    final newUserInfo = userInfo.copyWith(id: id);
+    final now = DateTime.now();
+    final newUserInfo = userInfo.copyWith(
+      id: id,
+      lastModified: userInfo.lastModified ?? now,
+    );
 
     // If this is the first user info, set it as default
     final allUserInfos = await getSavedUserInfos();
@@ -44,7 +48,8 @@ class UserInfoRepositorySQLiteImpl implements UserInfoRepository {
       final existingUserInfo = await UserDB.getUserById(id);
 
       if (existingUserInfo != null) {
-        await UserDB.updateUser(newUserInfo);
+        // Use timestamp-based conflict resolution
+        await UserDB.updateUser(newUserInfo, _requiredUserId);
       } else {
         await UserDB.insertUser(newUserInfo, _requiredUserId);
       }
@@ -55,6 +60,14 @@ class UserInfoRepositorySQLiteImpl implements UserInfoRepository {
   Future<void> deleteUserInfo(String id) async {
     final userInfo = await UserDB.getUserById(id);
     if (userInfo == null) return;
+
+    // Don't delete if it's the default user info and it's the only one
+    if (userInfo.isDefault) {
+      final allUserInfos = await getSavedUserInfos();
+      if (allUserInfos.length <= 1) {
+        return; // Don't delete the only user info
+      }
+    }
 
     await UserDB.deleteUser(id);
 
@@ -74,6 +87,20 @@ class UserInfoRepositorySQLiteImpl implements UserInfoRepository {
 
   @override
   Future<UserInfo?> getDefaultUserInfo() async {
-    return await UserDB.getDefaultUser(firebaseUserId: _requiredUserId);
+    final defaultUser = await UserDB.getDefaultUser(
+      firebaseUserId: _requiredUserId,
+    );
+
+    // If no default user is found, try to get the first user and set it as default
+    if (defaultUser == null) {
+      final allUsers = await getSavedUserInfos();
+      if (allUsers.isNotEmpty) {
+        // Set the first user as default
+        await setDefaultUserInfo(allUsers.first.id!);
+        return allUsers.first;
+      }
+    }
+
+    return defaultUser;
   }
 }
