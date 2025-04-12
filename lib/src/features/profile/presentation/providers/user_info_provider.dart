@@ -1,7 +1,6 @@
 // user_info_provider.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import '../../domain/entities/user_info.dart';
 import '../../domain/repositories/user_info_respository.dart';
 import '../../data/repositories/user_info_repository_hybrid_impl.dart';
@@ -76,7 +75,7 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<List<UserInfo>>> {
   // Method to trigger manual sync
   Future<void> syncUserInfos() async {
     if (_repository is UserInfoRepositoryHybridImpl) {
-      final hybridRepo = _repository as UserInfoRepositoryHybridImpl;
+      final hybridRepo = _repository;
       await hybridRepo.syncUserProfiles();
       await loadSavedUserInfos();
     }

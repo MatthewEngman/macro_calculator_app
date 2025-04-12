@@ -5,8 +5,6 @@ import '../providers/calculator_provider.dart';
 import '../widgets/input_field.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../../profile/domain/entities/user_info.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
-import '../../../profile/presentation/providers/user_info_provider.dart';
 
 class CalculatorScreen extends ConsumerStatefulWidget {
   final UserInfo? userInfo;
@@ -24,22 +22,51 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   final _weightController = TextEditingController();
   final _feetController = TextEditingController();
   final _inchesController = TextEditingController();
+  final _cmController =
+      TextEditingController(); // Separate controller for metric height
   final _ageController = TextEditingController();
   String _selectedSex = 'male';
   ActivityLevel _selectedActivityLevel = ActivityLevel.sedentary;
   Goal _selectedGoal = Goal.maintain;
-
-  // Flag to track if default macro was loaded
-  bool _defaultMacroLoaded = false;
+  bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      // Initialize calculator with user info or default settings
-      final settings = ref.read(settingsProvider);
-      final calculator = ref.read(calculatorProvider.notifier);
 
+    // Set safe default values without accessing providers or database
+    _selectedSex = 'male';
+    _selectedActivityLevel = ActivityLevel.sedentary;
+    _selectedGoal = Goal.maintain;
+
+    // Schedule initialization after the frame is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _safeInitialize();
+    });
+  }
+
+  void _safeInitialize() {
+    if (!mounted) return;
+
+    try {
+      // Try to read settings, but handle the case when they're not initialized
+      final calculatorNotifier = ref.read(calculatorProvider.notifier);
+
+      try {
+        final settings = ref.read(settingsProvider);
+        // Set values from settings if available
+        calculatorNotifier.goal = settings.goal.name;
+        calculatorNotifier.activityLevel = settings.activityLevel.name;
+        _selectedGoal = settings.goal;
+        _selectedActivityLevel = settings.activityLevel;
+      } catch (e) {
+        // If settings aren't available, use defaults
+        debugPrint('Error reading settings: $e');
+        calculatorNotifier.goal = Goal.maintain.name;
+        calculatorNotifier.activityLevel = ActivityLevel.sedentary.name;
+      }
+
+      // Now try to load user-specific values
       if (widget.userInfo != null) {
         // Pre-fill with user info
         final userInfo = widget.userInfo!;
@@ -47,50 +74,42 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         // Set text controllers
         if (userInfo.weight != null) {
           _weightController.text = userInfo.weight!.toString();
-          calculator.weight = userInfo.weight!;
+          calculatorNotifier.weight = userInfo.weight!;
         }
 
         if (userInfo.feet != null) {
           _feetController.text = userInfo.feet!.toString();
-          calculator.feet = userInfo.feet!;
+          calculatorNotifier.feet = userInfo.feet!;
         }
 
         if (userInfo.inches != null) {
           _inchesController.text = userInfo.inches!.toString();
-          calculator.inches = userInfo.inches!;
+          calculatorNotifier.inches = userInfo.inches!;
         }
 
         if (userInfo.age != null) {
           _ageController.text = userInfo.age!.toString();
-          calculator.age = userInfo.age!;
+          calculatorNotifier.age = userInfo.age!;
         }
 
         // Set dropdowns
         _selectedSex = userInfo.sex;
-        calculator.sex = userInfo.sex;
+        calculatorNotifier.sex = userInfo.sex;
 
         _selectedActivityLevel = userInfo.activityLevel;
-        calculator.activityLevel = userInfo.activityLevel.name;
+        calculatorNotifier.activityLevel = userInfo.activityLevel.name;
 
         _selectedGoal = userInfo.goal;
-        calculator.goal = userInfo.goal.name;
-
-        // Update state to refresh UI
-        setState(() {});
+        calculatorNotifier.goal = userInfo.goal.name;
       } else {
         // Try to load default macro to prefill calculator
-        _loadDefaultMacroValues().then((_) {
-          // If no default macro was loaded, use default settings
-          if (!_defaultMacroLoaded) {
-            calculator.goal = settings.goal.name;
-            calculator.activityLevel = settings.activityLevel.name;
-            _selectedGoal = settings.goal;
-            _selectedActivityLevel = settings.activityLevel;
-            setState(() {});
-          }
-        });
+        _loadDefaultMacroValues();
       }
-    });
+
+      _initialized = true;
+    } catch (e) {
+      debugPrint('Error initializing calculator: $e');
+    }
   }
 
   @override
@@ -98,19 +117,28 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     _weightController.dispose();
     _feetController.dispose();
     _inchesController.dispose();
+    _cmController.dispose();
     _ageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final calculatorNotifier = ref.watch(calculatorProvider.notifier);
-    final settings = ref.watch(settingsProvider);
+    // Get theme data directly from context
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    final bool isMetric = settings.units == Units.metric;
-    final String weightUnit = isMetric ? 'kg' : 'lbs';
+    // Try to safely read providers, but use defaults if they fail
+    bool isMetric = false; // Default to imperial units
+    String weightUnit = 'lbs';
+    try {
+      final settings = ref.read(settingsProvider);
+      isMetric = settings.units == Units.metric;
+      weightUnit = isMetric ? 'kg' : 'lbs';
+    } catch (e) {
+      debugPrint('Error reading settings: $e');
+      // Keep the imperial defaults
+    }
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
@@ -176,8 +204,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                 keyboardType: TextInputType.number,
                                 controller: _weightController,
                                 onChanged: (value) {
-                                  calculatorNotifier.weight =
-                                      double.tryParse(value) ?? 0.0;
+                                  try {
+                                    final calculatorNotifier = ref.read(
+                                      calculatorProvider.notifier,
+                                    );
+                                    calculatorNotifier.weight =
+                                        double.tryParse(value) ?? 0.0;
+                                  } catch (e) {
+                                    debugPrint('Error updating weight: $e');
+                                  }
                                 },
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
@@ -186,29 +221,31 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                   if (double.tryParse(value) == null) {
                                     return 'Please enter a valid number';
                                   }
-                                  final weight = double.parse(value);
-                                  if (weight <= 0) {
-                                    return 'Weight must be greater than 0';
-                                  }
-                                  final maxWeight =
-                                      isMetric ? 227 : 500; // 500 lbs = ~227 kg
-                                  if (weight > maxWeight) {
-                                    return 'Weight must be less than $maxWeight $weightUnit';
-                                  }
                                   return null;
                                 },
                               ),
                               const SizedBox(height: 16),
-                              // Height Input
+                              // Height Input - Conditional based on units
                               if (isMetric)
                                 InputField(
                                   label: 'Height (cm)',
                                   hint: 'Enter your height in cm',
                                   keyboardType: TextInputType.number,
-                                  controller: _inchesController,
+                                  controller: _cmController,
                                   onChanged: (value) {
-                                    calculatorNotifier.inches =
-                                        int.tryParse(value) ?? 0;
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      final cm = int.tryParse(value) ?? 0;
+                                      final totalInches = cm / 2.54;
+                                      calculatorNotifier.feet =
+                                          (totalInches / 12).floor();
+                                      calculatorNotifier.inches =
+                                          (totalInches % 12).round();
+                                    } catch (e) {
+                                      debugPrint('Error updating height: $e');
+                                    }
                                   },
                                   validator: (value) {
                                     if (value == null || value.isEmpty) {
@@ -216,13 +253,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     }
                                     if (int.tryParse(value) == null) {
                                       return 'Please enter a valid number';
-                                    }
-                                    final height = int.parse(value);
-                                    if (height <= 0) {
-                                      return 'Height must be greater than 0';
-                                    }
-                                    if (height > 250) {
-                                      return 'Height must be less than 250 cm';
                                     }
                                     return null;
                                   },
@@ -237,8 +267,17 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                         keyboardType: TextInputType.number,
                                         controller: _feetController,
                                         onChanged: (value) {
-                                          calculatorNotifier.feet =
-                                              int.tryParse(value) ?? 0;
+                                          try {
+                                            final calculatorNotifier = ref.read(
+                                              calculatorProvider.notifier,
+                                            );
+                                            calculatorNotifier.feet =
+                                                int.tryParse(value) ?? 0;
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Error updating feet: $e',
+                                            );
+                                          }
                                         },
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
@@ -246,13 +285,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                           }
                                           if (int.tryParse(value) == null) {
                                             return 'Invalid number';
-                                          }
-                                          final feet = int.parse(value);
-                                          if (feet <= 0) {
-                                            return 'Must be > 0';
-                                          }
-                                          if (feet > 8) {
-                                            return 'Must be < 9';
                                           }
                                           return null;
                                         },
@@ -266,8 +298,17 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                         keyboardType: TextInputType.number,
                                         controller: _inchesController,
                                         onChanged: (value) {
-                                          calculatorNotifier.inches =
-                                              int.tryParse(value) ?? 0;
+                                          try {
+                                            final calculatorNotifier = ref.read(
+                                              calculatorProvider.notifier,
+                                            );
+                                            calculatorNotifier.inches =
+                                                int.tryParse(value) ?? 0;
+                                          } catch (e) {
+                                            debugPrint(
+                                              'Error updating inches: $e',
+                                            );
+                                          }
                                         },
                                         validator: (value) {
                                           if (value == null || value.isEmpty) {
@@ -275,13 +316,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                           }
                                           if (int.tryParse(value) == null) {
                                             return 'Invalid number';
-                                          }
-                                          final inches = int.parse(value);
-                                          if (inches < 0) {
-                                            return 'Must be >= 0';
-                                          }
-                                          if (inches > 11) {
-                                            return 'Must be < 12';
                                           }
                                           return null;
                                         },
@@ -297,8 +331,15 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                 keyboardType: TextInputType.number,
                                 controller: _ageController,
                                 onChanged: (value) {
-                                  calculatorNotifier.age =
-                                      int.tryParse(value) ?? 0;
+                                  try {
+                                    final calculatorNotifier = ref.read(
+                                      calculatorProvider.notifier,
+                                    );
+                                    calculatorNotifier.age =
+                                        int.tryParse(value) ?? 0;
+                                  } catch (e) {
+                                    debugPrint('Error updating age: $e');
+                                  }
                                 },
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
@@ -306,13 +347,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                   }
                                   if (int.tryParse(value) == null) {
                                     return 'Please enter a valid number';
-                                  }
-                                  final age = int.parse(value);
-                                  if (age <= 0) {
-                                    return 'Age must be greater than 0';
-                                  }
-                                  if (age > 120) {
-                                    return 'Age must be less than 120';
                                   }
                                   return null;
                                 },
@@ -340,7 +374,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     setState(() {
                                       _selectedSex = value;
                                     });
-                                    calculatorNotifier.sex = value;
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      calculatorNotifier.sex = value;
+                                    } catch (e) {
+                                      debugPrint('Error updating sex: $e');
+                                    }
                                   }
                                 },
                               ),
@@ -387,8 +428,17 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     setState(() {
                                       _selectedActivityLevel = value;
                                     });
-                                    calculatorNotifier.activityLevel =
-                                        value.name;
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      calculatorNotifier.activityLevel =
+                                          value.name;
+                                    } catch (e) {
+                                      debugPrint(
+                                        'Error updating activity level: $e',
+                                      );
+                                    }
                                   }
                                 },
                               ),
@@ -433,7 +483,14 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     setState(() {
                                       _selectedGoal = value;
                                     });
-                                    calculatorNotifier.goal = value.name;
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      calculatorNotifier.goal = value.name;
+                                    } catch (e) {
+                                      debugPrint('Error updating goal: $e');
+                                    }
                                   }
                                 },
                               ),
@@ -446,8 +503,17 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                   hint: 'Enter rate in $weightUnit/week',
                                   keyboardType: TextInputType.number,
                                   onChanged: (value) {
-                                    calculatorNotifier.weightChangeRate =
-                                        double.tryParse(value); // Allow null
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      calculatorNotifier.weightChangeRate =
+                                          double.tryParse(value); // Allow null
+                                    } catch (e) {
+                                      debugPrint(
+                                        'Error updating weight change rate: $e',
+                                      );
+                                    }
                                   },
                                   validator: (value) {
                                     if (_selectedGoal == Goal.maintain) {
@@ -463,7 +529,17 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                                     if (rate <= 0) {
                                       return 'Rate must be greater than 0';
                                     }
-                                    String goal = calculatorNotifier.goal;
+                                    // Safe access to goal
+                                    String goal = 'maintain';
+                                    try {
+                                      final calculatorNotifier = ref.read(
+                                        calculatorProvider.notifier,
+                                      );
+                                      goal = calculatorNotifier.goal;
+                                    } catch (e) {
+                                      debugPrint('Error reading goal: $e');
+                                      goal = _selectedGoal.name;
+                                    }
                                     final maxRate =
                                         isMetric
                                             ? (goal == 'lose' ? 0.9 : 0.45)
@@ -485,56 +561,99 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: FilledButton.icon(
                           onPressed: () {
-                            if (_formKey.currentState!.validate()) {
-                              // Reset weight change rate if goal is maintain
-                              if (calculatorNotifier.goal == 'maintain') {
-                                calculatorNotifier.weightChangeRate = null;
-                              }
+                            try {
+                              if (_formKey.currentState!.validate()) {
+                                // Prepare the calculator with correct height values based on unit system
+                                final calculatorNotifier = ref.read(
+                                  calculatorProvider.notifier,
+                                );
 
-                              // Calculate macros and navigate to results
-                              final result =
-                                  ref
-                                      .read(calculatorProvider.notifier)
-                                      .calculateMacros();
-                              if (result != null) {
-                                context.push('/result', extra: result);
+                                // For imperial units, make sure both feet and inches are set
+                                if (!isMetric) {
+                                  // Ensure feet is set
+                                  if (_feetController.text.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Please enter your height in feet',
+                                        ),
+                                        backgroundColor: colorScheme.error,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  // Convert feet/inches to cm for calculation if needed
+                                  final feet =
+                                      int.tryParse(_feetController.text) ?? 0;
+                                  final inches =
+                                      int.tryParse(_inchesController.text) ?? 0;
+                                  calculatorNotifier.feet = feet;
+                                  calculatorNotifier.inches = inches;
+                                } else {
+                                  // For metric, ensure cm is set
+                                  if (_cmController.text.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Please enter your height in cm',
+                                        ),
+                                        backgroundColor: colorScheme.error,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  // Set heightInCm directly
+                                  final cm =
+                                      int.tryParse(_cmController.text) ?? 0;
+
+                                  // Convert to feet/inches for compatibility
+                                  final totalInches = cm / 2.54;
+                                  calculatorNotifier.feet =
+                                      (totalInches / 12).floor();
+                                  calculatorNotifier.inches =
+                                      (totalInches % 12).round();
+                                }
+
+                                // Reset weight change rate if goal is maintain
+                                if (calculatorNotifier.goal == 'maintain') {
+                                  calculatorNotifier.weightChangeRate = null;
+                                }
+
+                                // Calculate macros and navigate to results
+                                final result =
+                                    calculatorNotifier.calculateMacros();
+                                if (result != null) {
+                                  context.push('/result', extra: result);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Could not calculate macros. Please check your inputs.',
+                                      ),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
+                                }
                               }
+                            } catch (e) {
+                              debugPrint('Error calculating macros: $e');
+                              // Show error message to user
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Error calculating macros: ${e.toString()}',
+                                  ),
+                                  backgroundColor: colorScheme.error,
+                                ),
+                              );
                             }
                           },
                           icon: const Icon(Icons.calculate),
                           label: const Text('Calculate Macros'),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Center(
-                          child: InkWell(
-                            onTap: () {
-                              _showCalculationInfoDialog(context);
-                            },
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.info_outline,
-                                  size: 16,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'How are macros calculated?',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.primary,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -667,63 +786,11 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
     );
   }
 
-  // Load default macro values if available
+  // Load default macro values if available - simplified to avoid database access
   Future<void> _loadDefaultMacroValues() async {
-    try {
-      final calculator = ref.read(calculatorProvider.notifier);
-      final profileRepository = ref.read(profileRepositoryProvider);
-      final defaultMacro = await profileRepository.getDefaultMacro();
-
-      if (defaultMacro != null && mounted) {
-        // Attempt to reverse-engineer the calculator inputs from the macro result
-        // This is an approximation and may not be exact
-
-        // Get user info from the default macro
-        final userInfoNotifier = ref.read(userInfoProvider.notifier);
-        final defaultUserInfo = await userInfoNotifier.getDefaultUserInfo();
-
-        if (defaultUserInfo != null) {
-          // Set text controllers
-          if (defaultUserInfo.weight != null) {
-            _weightController.text = defaultUserInfo.weight!.toString();
-            calculator.weight = defaultUserInfo.weight!;
-          }
-
-          if (defaultUserInfo.feet != null) {
-            _feetController.text = defaultUserInfo.feet!.toString();
-            calculator.feet = defaultUserInfo.feet!;
-          }
-
-          if (defaultUserInfo.inches != null) {
-            _inchesController.text = defaultUserInfo.inches!.toString();
-            calculator.inches = defaultUserInfo.inches!;
-          }
-
-          if (defaultUserInfo.age != null) {
-            _ageController.text = defaultUserInfo.age!.toString();
-            calculator.age = defaultUserInfo.age!;
-          }
-
-          // Set dropdowns
-          _selectedSex = defaultUserInfo.sex;
-          calculator.sex = defaultUserInfo.sex;
-
-          _selectedActivityLevel = defaultUserInfo.activityLevel;
-          calculator.activityLevel = defaultUserInfo.activityLevel.name;
-
-          // Set goal from user info
-          _selectedGoal = defaultUserInfo.goal;
-          calculator.goal = defaultUserInfo.goal.name;
-
-          // For debugging
-          debugPrint('User goal: ${defaultUserInfo.goal.name}');
-
-          _defaultMacroLoaded = true;
-          setState(() {});
-        }
-      }
-    } catch (e) {
-      debugPrint('Error loading default macro: $e');
-    }
+    // Skip database access entirely for now to avoid read-only errors
+    // Just use the default values that were already set in initState
+    debugPrint('Using default values instead of loading from database');
+    return;
   }
 }

@@ -33,7 +33,7 @@ class MealPlan {
       'plan': plan,
       'feedback': feedback,
       'timestamp': timestamp.toIso8601String(),
-      'lastModified': lastModified?.toIso8601String(),
+      'last_modified': lastModified?.millisecondsSinceEpoch,
     };
   }
 
@@ -48,8 +48,14 @@ class MealPlan {
       feedback: map['feedback'] as String? ?? '',
       timestamp: DateTime.parse(map['timestamp'] as String),
       lastModified:
-          map['lastModified'] != null
-              ? DateTime.parse(map['lastModified'] as String)
+          map['last_modified'] != null
+              ? (map['last_modified'] is DateTime
+                  ? map['last_modified'] as DateTime
+                  : (map['last_modified'] is int
+                      ? DateTime.fromMillisecondsSinceEpoch(
+                        map['last_modified'] as int,
+                      )
+                      : DateTime.parse(map['last_modified'] as String)))
               : null,
     );
   }

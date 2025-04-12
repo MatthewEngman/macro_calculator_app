@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
 import '../widgets/saved_macro_card.dart';
 import '../widgets/user_info_tab.dart';
-import '../../domain/entities/user_info.dart';
-import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/screens/account_upgrade_screen.dart';
 

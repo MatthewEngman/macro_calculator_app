@@ -103,26 +103,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Future<void> _finalizeOnboarding() async {
     if (!mounted) return;
 
-    // Capture all provider references first
-    final userInfoNotifier = ref.read(userInfoProvider.notifier);
-    final prefs = ref.read(sharedPreferencesProvider);
-    final calculatorNotifier = ref.read(calculatorProvider.notifier);
-    final profileNotifier = ref.read(profileProvider.notifier);
-
-    // Create user profile from collected data (using original defaults logic)
-    final userInfo = UserInfo(
-      name: _nameController.text,
-      age: int.tryParse(_ageController.text) ?? 30,
-      sex: _selectedGender ?? 'male',
-      weight: double.tryParse(_weightController.text) ?? 70,
-      feet: int.tryParse(_heightFeetController.text) ?? 5,
-      inches: int.tryParse(_heightInchesController.text) ?? 10,
-      activityLevel: _selectedActivityLevel,
-      goal: _selectedGoal,
-      units: _selectedUnits,
-    );
-
     try {
+      // Capture all provider references first
+      final userInfoNotifier = ref.read(userInfoProvider.notifier);
+      final prefs = ref.read(sharedPreferencesProvider);
+      final calculatorNotifier = ref.read(calculatorProvider.notifier);
+      final profileNotifier = ref.read(profileProvider.notifier);
+
+      // Create user profile from collected data (using original defaults logic)
+      final userInfo = UserInfo(
+        name: _nameController.text,
+        age: int.tryParse(_ageController.text) ?? 30,
+        sex: _selectedGender ?? 'male',
+        weight: double.tryParse(_weightController.text) ?? 70,
+        feet: int.tryParse(_heightFeetController.text) ?? 5,
+        inches: int.tryParse(_heightInchesController.text) ?? 10,
+        activityLevel: _selectedActivityLevel,
+        goal: _selectedGoal,
+        units: _selectedUnits,
+      );
+
       // Save user profile
       await userInfoNotifier.saveUserInfo(userInfo);
 
@@ -207,9 +207,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       // Mark onboarding as complete
       await prefs.setBool('onboarding_complete', true);
 
-      // Check if widget is still mounted before navigating (original check)
-      if (mounted && context.mounted) {
-        context.go('/');
+      // Check if widget is still mounted before navigating
+      if (mounted) {
+        // Use Future.microtask to ensure navigation happens after the current build cycle
+        Future.microtask(() {
+          if (mounted && context.mounted) {
+            context.go('/');
+          }
+        });
       }
     } catch (e) {
       // Handle any errors that might occur during saving
@@ -218,6 +223,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           SnackBar(content: Text('Error saving profile: ${e.toString()}')),
         );
       }
+      print('Error in _finalizeOnboarding: $e');
     }
   } // <<< Closing brace for _finalizeOnboarding method
 

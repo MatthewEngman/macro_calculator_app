@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/persistence/shared_preferences_provider.dart';
 import '../providers/auth_provider.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -23,9 +24,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     try {
       await ref.read(authRepositoryProvider).signInAnonymously();
-      // Explicitly navigate to the home page after successful sign-in
-      if (mounted && context.mounted) {
-        context.go('/');
+
+      // Check if onboarding is complete before navigating
+      if (mounted) {
+        final prefs = ref.read(sharedPreferencesProvider);
+        final onboardingComplete =
+            prefs.getBool('onboarding_complete') ?? false;
+
+        if (!onboardingComplete) {
+          // Navigate to onboarding for new users
+          context.go('/onboarding');
+        } else {
+          // Navigate to home for returning users
+          context.go('/');
+        }
       }
     } catch (e) {
       setState(() {

@@ -66,13 +66,13 @@ class UserInfo {
       'inches': inches,
       'age': age,
       'sex': sex,
-      'activityLevel': activityLevel.index,
+      'activity_level': activityLevel.index,
       'goal': goal.index,
       'units': units.index,
       'id': id,
-      'isDefault': isDefault,
+      'is_default': isDefault,
       'name': name,
-      'lastModified': lastModified?.millisecondsSinceEpoch,
+      'last_modified': lastModified?.millisecondsSinceEpoch,
     };
   }
 

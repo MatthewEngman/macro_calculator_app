@@ -1,3 +1,12 @@
+import 'package:macro_masher/src/core/persistence/persistence_service.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/profile_repository_impl.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_firestore_impl.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_hybrid_impl.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_sqlite_impl.dart';
+import 'package:macro_masher/src/features/profile/presentation/providers/profile_provider.dart';
+import 'package:macro_masher/src/core/persistence/data_sync_manager.dart';
+import 'package:macro_masher/src/features/profile/presentation/providers/user_info_provider.dart';
+
 import 'src/core/persistence/repository_providers.dart' as persistence;
 import 'src/core/persistence/background_sync_service.dart' as sync_service;
 import 'package:flutter/material.dart';
@@ -15,10 +24,8 @@ import 'src/core/persistence/database_helper.dart';
 import 'src/core/routing/navigation_provider.dart' as navigation;
 import 'src/core/persistence/shared_preferences_provider.dart'
     as prefs_provider;
+import 'src/features/calculator/presentation/providers/calculator_provider.dart';
 import 'src/core/persistence/database_provider.dart' as db_provider_impl;
-// Import the provider definition file
-import 'src/features/profile/presentation/providers/profile_provider.dart';
-import 'src/features/profile/data/repositories/profile_repository_impl.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +40,10 @@ void main() async {
   final Database database = await DatabaseHelper.instance.database;
 
   final connectivity = Connectivity();
+
+  // Initialize the persistence service
+  final persistenceService = PersistenceService(database);
+  await persistenceService.initialize();
 
   runApp(
     ProviderScope(
@@ -50,6 +61,11 @@ void main() async {
         profileRepositoryProvider.overrideWithValue(
           ProfileRepositoryImpl(prefs),
         ),
+        // Override the profileProvider
+        profileProvider.overrideWith((ref) {
+          final repository = ref.watch(profileRepositoryProvider);
+          return ProfileNotifier(repository);
+        }),
         // Override the Firebase Auth provider
         persistence.firebaseAuthProvider.overrideWithValue(
           FirebaseAuth.instance,
@@ -60,6 +76,33 @@ void main() async {
         ),
         // Override the connectivity provider
         persistence.connectivityProvider.overrideWithValue(connectivity),
+        // Override the persistence service provider
+        persistenceServiceProvider.overrideWithValue(persistenceService),
+        // Override the data sync manager provider
+        persistence.dataSyncManagerProvider.overrideWithValue(
+          DataSyncManager(
+            FirebaseAuth.instance,
+            FirebaseFirestore.instance,
+            connectivity,
+          ),
+        ),
+        // Override the userInfoRepositoryProvider
+        userInfoRepositoryProvider.overrideWithValue(
+          UserInfoRepositoryHybridImpl(
+            UserInfoRepositorySQLiteImpl(FirebaseAuth.instance),
+            UserInfoRepositoryFirestoreImpl(
+              FirebaseFirestore.instance,
+              FirebaseAuth.instance,
+            ),
+            FirebaseAuth.instance,
+            connectivity,
+            DataSyncManager(
+              FirebaseAuth.instance,
+              FirebaseFirestore.instance,
+              connectivity,
+            ),
+          ),
+        ),
       ],
       child: const MacroCalculatorApp(),
     ),

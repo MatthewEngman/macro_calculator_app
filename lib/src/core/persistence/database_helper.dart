@@ -27,18 +27,19 @@ class DatabaseHelper {
   }
 
   // Open the database (and create it if it doesn't exist).
-  _initDatabase() async {
+  Future<Database> _initDatabase() async {
     String path = join(await getDatabasesPath(), _databaseName);
     return await openDatabase(
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
+      readOnly: false, // Explicitly set readOnly to false
     );
   }
 
   // SQL code to create the database table.
-  Future _onCreate(Database db, int version) async {
+  static Future _onCreate(Database db, int version) async {
     await db.execute('''
           CREATE TABLE $tableSettings (
             $columnKey TEXT PRIMARY KEY,
@@ -54,7 +55,7 @@ class DatabaseHelper {
   }
 
   // Handle database upgrades
-  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  static Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Add new tables if upgrading from version 1
       if (!await _tableExists(db, UserDB.tableName)) {
@@ -70,7 +71,7 @@ class DatabaseHelper {
   }
 
   // Helper method to check if a table exists
-  Future<bool> _tableExists(Database db, String tableName) async {
+  static Future<bool> _tableExists(Database db, String tableName) async {
     var result = await db.rawQuery(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='$tableName'",
     );

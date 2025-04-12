@@ -1,6 +1,5 @@
 // lib/src/features/profile/data/repositories/user_info_repository_hybrid_impl.dart
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:connectivity_plus/connectivity_plus.dart';
 

@@ -34,7 +34,7 @@ final navigationProvider = Provider<void Function(String)>((ref) {
 final authStateListenerProvider = Provider<void>((ref) {
   ref.listen<AsyncValue<User?>>(authStateChangesProvider, (previous, current) {
     current.whenData((user) {
-      if (user != null) {
+      if (user != null && !user.isAnonymous) {
         // When a user signs in, check if they need onboarding
         final prefs = ref.read(sharedPreferencesProvider);
         final onboardingComplete =
@@ -65,6 +65,11 @@ final authStateListenerProvider = Provider<void>((ref) {
             );
             userInfoNotifier.saveUserInfo(defaultProfile);
           }
+        });
+      } else if (user != null && user.isAnonymous) {
+        // Anonymous user, show onboarding
+        Future.delayed(Duration(milliseconds: 100), () {
+          ref.read(navigationProvider)('/onboarding');
         });
       }
     });
