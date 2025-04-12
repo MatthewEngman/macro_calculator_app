@@ -1,3 +1,5 @@
+import 'src/core/persistence/repository_providers.dart' as persistence;
+import 'src/core/persistence/background_sync_service.dart' as sync_service;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,15 +7,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'firebase_options.dart';
 import 'src/core/routing/app_router.dart';
 import 'src/core/persistence/database_helper.dart';
+import 'src/core/routing/navigation_provider.dart' as navigation;
+import 'src/core/persistence/shared_preferences_provider.dart'
+    as prefs_provider;
+import 'src/core/persistence/database_provider.dart' as db_provider_impl;
 // Import the provider definition file
-import 'src/features/profile/presentation/providers/settings_provider.dart';
-import 'src/features/calculator/presentation/providers/calculator_provider.dart';
 import 'src/features/profile/presentation/providers/profile_provider.dart';
 import 'src/features/profile/data/repositories/profile_repository_impl.dart';
-import 'src/features/auth/presentation/providers/auth_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,27 +32,34 @@ void main() async {
   // Initialize SQLite database
   final Database database = await DatabaseHelper.instance.database;
 
+  final connectivity = Connectivity();
+
   runApp(
     ProviderScope(
       overrides: [
-        navigationProvider.overrideWithValue((route) {
+        navigation.navigationProvider.overrideWithValue((route) {
           final context = appRouter.routerDelegate.navigatorKey.currentContext;
           if (context != null && context.mounted) {
             context.go(route);
           }
         }),
-        // Override the SharedPreferences provider with the instance
-        sharedPreferencesProvider.overrideWithValue(prefs),
+        prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
         // Override the database provider with the initialized database
-        databaseProvider.overrideWithValue(database),
+        db_provider_impl.databaseProvider.overrideWithValue(database),
         // Override the profile repository provider
         profileRepositoryProvider.overrideWithValue(
           ProfileRepositoryImpl(prefs),
         ),
         // Override the Firebase Auth provider
-        firebaseAuthProvider.overrideWithValue(FirebaseAuth.instance),
-        // Note: We're not overriding userInfoRepositoryProvider anymore
-        // as it now uses Firestore directly
+        persistence.firebaseAuthProvider.overrideWithValue(
+          FirebaseAuth.instance,
+        ),
+        // Override the Firestore provider
+        persistence.firestoreProvider.overrideWithValue(
+          FirebaseFirestore.instance,
+        ),
+        // Override the connectivity provider
+        persistence.connectivityProvider.overrideWithValue(connectivity),
       ],
       child: const MacroCalculatorApp(),
     ),
@@ -59,8 +71,8 @@ class MacroCalculatorApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Initialize the auth state listener
-    ref.watch(authStateListenerProvider);
+    // Initialize the background sync service
+    ref.read(sync_service.backgroundSyncServiceProvider);
 
     return MaterialApp.router(
       routerConfig: appRouter,

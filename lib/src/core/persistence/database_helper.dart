@@ -1,10 +1,13 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../../features/meal_plan/data/meal_plan_db.dart';
+import '../../features/calculator/data/repositories/macro_calculation_db.dart';
+import '../../features/profile/data/repositories/user_db.dart';
+import '../../features/meal_plan/data/meal_log_db.dart';
 
 class DatabaseHelper {
   static const _databaseName = "app_database.db";
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2; // Increased version for schema update
 
   static const tableSettings = 'settings';
   static const columnKey = 'key';
@@ -30,6 +33,7 @@ class DatabaseHelper {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -42,7 +46,34 @@ class DatabaseHelper {
           )
           ''');
 
-    // Create meal_plans table
+    // Create tables
     await MealPlanDB.createTable(db);
+    await UserDB.createTable(db);
+    await MacroCalculationDB.createTable(db);
+    await MealLogDB.createTable(db);
+  }
+
+  // Handle database upgrades
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add new tables if upgrading from version 1
+      if (!await _tableExists(db, UserDB.tableName)) {
+        await UserDB.createTable(db);
+      }
+      if (!await _tableExists(db, MacroCalculationDB.tableName)) {
+        await MacroCalculationDB.createTable(db);
+      }
+      if (!await _tableExists(db, MealLogDB.tableName)) {
+        await MealLogDB.createTable(db);
+      }
+    }
+  }
+
+  // Helper method to check if a table exists
+  Future<bool> _tableExists(Database db, String tableName) async {
+    var result = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='$tableName'",
+    );
+    return result.isNotEmpty;
   }
 }
