@@ -1,6 +1,7 @@
+# In your FastAPI backend
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import requests
 
 app = FastAPI()
 
@@ -12,22 +13,23 @@ class MealPlanRequest(BaseModel):
 
 @app.post("/generate-meal-plan/")
 async def generate_meal_plan(request: MealPlanRequest):
-    prompt = f"Generate a {request.diet} meal plan for {request.goal} goal.\n"
-    prompt += f"Calories: {request.macros['calories']} kcal\n"
-    prompt += f"Protein: {request.macros['protein']}g\n"
-    prompt += f"Carbs: {request.macros['carbs']}g\n"
-    prompt += f"Fat: {request.macros['fat']}g\n"
-    prompt += f"Available ingredients: {', '.join(request.ingredients)}.\n"
-    prompt += "Include ingredients, macros, and full step-by-step recipe."
-
-    # Call local Ollama (Gemma) instance
-    response = requests.post("http://localhost:11434/api/generate", json={
-        "model": "gemma",
-        "prompt": prompt,
-        "stream": False
-    })
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        raise HTTPException(status_code=response.status_code, detail="Model error")
+    try:
+        # Forward the request to the Gemini service
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:3000/generate-meal-plan",  # Or your deployed URL
+                json={
+                    "diet": request.diet,
+                    "goal": request.goal,
+                    "macros": request.macros,
+                    "ingredients": request.ingredients
+                },
+                timeout=60.0  # Longer timeout for AI generation
+            )
+            
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise HTTPException(status_code=response.status_code, detail="Failed to generate meal plan")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

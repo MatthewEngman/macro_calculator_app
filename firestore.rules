@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow access to the old path for backward compatibility
+    match /user_infos/{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Allow access to user-specific collections
+    match /users/{userId}/{collection}/{document=**} {
+      // Only allow access to a user's own data
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

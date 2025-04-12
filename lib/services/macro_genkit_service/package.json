@@ -1,0 +1,21 @@
+{
+  "name": "macro_genkit_service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "meal_plan_genkit_service.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@genkit-ai/firebase": "^1.6.0",
+    "@google/generative-ai": "^0.24.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "genkit": "^1.6.0"
+  }
+}
