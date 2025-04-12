@@ -9,8 +9,8 @@ class MealPlanService {
   static String get baseUrl {
     // For production or real device use
     if (kReleaseMode) {
-      // Replace with your Cloud Run service URL when deployed
-      return 'https://meal-plan-service-xxxxxxxx-uc.a.run.app';
+      // Firebase Functions URL - direct URL from deployment
+      return 'https://generatemealplan-tf3ipswbia-uc.a.run.app';
     }
 
     // For development use
@@ -29,15 +29,26 @@ class MealPlanService {
   // Add a method to check if the API is available
   Future<bool> isApiAvailable() async {
     try {
-      // Use a simple GET request to the base URL or root endpoint
-      // Most APIs will respond to a GET request at the root path
-      final response = await http
-          .get(Uri.parse('$baseUrl/'))
-          .timeout(const Duration(seconds: 3));
+      if (kReleaseMode) {
+        // For Cloud Functions, we'll try the health check endpoint
+        final response = await http
+            .get(Uri.parse('$baseUrl/healthCheck'))
+            .timeout(const Duration(seconds: 5));
 
-      return response.statusCode <
-          500; // Any response except server error indicates API is up
+        print(
+          'Health check response: ${response.statusCode} - ${response.body}',
+        );
+        return response.statusCode == 200;
+      } else {
+        // For local development server
+        final response = await http
+            .get(Uri.parse('$baseUrl/'))
+            .timeout(const Duration(seconds: 3));
+
+        return response.statusCode < 500;
+      }
     } catch (e) {
+      print('API availability check failed: $e');
       return false; // Any exception means API is not available
     }
   }
@@ -57,16 +68,30 @@ class MealPlanService {
         );
       }
 
+      // Prepare the request body
+      final requestBody = {
+        'diet': diet,
+        'goal': goal,
+        'macros': {
+          'calories': macros['calories'] ?? 0,
+          'protein': macros['protein'] ?? 0,
+          'carbs': macros['carbs'] ?? 0,
+          'fat': macros['fat'] ?? 0,
+        },
+        'ingredients': ingredients,
+      };
+
+      print('Sending request to: $baseUrl');
+      print('Request body: ${jsonEncode(requestBody)}');
+
       final response = await http.post(
-        Uri.parse('$baseUrl/generate-meal-plan/'),
+        Uri.parse(baseUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'diet': diet,
-          'goal': goal,
-          'macros': macros,
-          'ingredients': ingredients,
-        }),
+        body: jsonEncode(requestBody),
       );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
@@ -81,11 +106,14 @@ class MealPlanService {
           feedback: '',
         );
       } else {
-        throw Exception('Failed to generate meal plan: ${response.statusCode}');
+        throw Exception(
+          'Failed to generate meal plan: ${response.statusCode} - ${response.body}',
+        );
       }
     } on ApiUnavailableException {
       rethrow;
     } catch (e) {
+      print('Error generating meal plan: $e');
       throw Exception('Error generating meal plan: $e');
     }
   }
