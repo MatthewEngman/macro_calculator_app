@@ -152,26 +152,56 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               // Sign in with Google button
               _isGoogleLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton.icon(
-                    onPressed: _signInWithGoogle,
-                    icon: Icon(
-                      Icons.g_mobiledata,
-                      size: 24.0,
-                      color: Colors.blue,
+                  : Container(
+                    width: double.infinity,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey.shade300),
                     ),
-                    label: const Text(
-                      'Sign in with Google',
-                      style: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.black87,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black87,
-                      minimumSize: const Size(double.infinity, 50),
-                      shape: RoundedRectangleBorder(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _signInWithGoogle,
                         borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 18,
+                                height: 18,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'G',
+                                    style: TextStyle(
+                                      color: Colors.red[700],
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 24),
+                              const Text(
+                                'Sign in with Google',
+                                style: TextStyle(
+                                  color: Color(0xFF757575),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  fontFamily: 'Roboto',
+                                ),
+                              ),
+                              const Spacer(),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

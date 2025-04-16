@@ -4,10 +4,7 @@ import '../../domain/repositories/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId:
-        '758257668487-8er785lc2flkcd8g2bv2hojj8768dl72.apps.googleusercontent.com',
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   AuthRepositoryImpl(this._firebaseAuth);
 
