@@ -1,15 +1,7 @@
-import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
-
-import 'src/core/persistence/firestore_sync_service.dart';
 import 'package:macro_masher/src/core/persistence/persistence_service.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/profile_repository_impl.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_firestore_impl.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_hybrid_impl.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_sqlite_impl.dart';
 import 'package:macro_masher/src/features/profile/presentation/providers/profile_provider.dart';
 import 'package:macro_masher/src/core/persistence/data_sync_manager.dart';
-import 'package:macro_masher/src/features/profile/presentation/providers/user_info_provider.dart';
-
 import 'src/core/persistence/repository_providers.dart' as persistence;
 import 'src/core/persistence/background_sync_service.dart' as sync_service;
 import 'package:flutter/material.dart';
@@ -28,6 +20,8 @@ import 'src/core/persistence/shared_preferences_provider.dart'
     as prefs_provider;
 import 'src/features/calculator/presentation/providers/calculator_provider.dart';
 import 'src/core/persistence/database_provider.dart' as db_provider_impl;
+import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
+import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,8 +45,11 @@ void main() async {
   // Initialize local storage service
   final localStorageService = LocalStorageService(persistenceService);
 
-  // Initialize FirestoreSyncService with the local storage service
+  // Optionally, if FirestoreSyncService has an async static initializer:
   await FirestoreSyncService.initialize(localStorageService);
+
+  // Create the FirestoreSyncService instance for provider override
+  final firestoreSyncService = FirestoreSyncService();
 
   runApp(
     ProviderScope(
@@ -63,6 +60,9 @@ void main() async {
             context.go(route);
           }
         }),
+        persistence.firestoreSyncServiceProvider.overrideWithValue(
+          firestoreSyncService,
+        ),
         prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
         // Override the database provider with the initialized database
         db_provider_impl.databaseProvider.overrideWithValue(database),
@@ -95,10 +95,7 @@ void main() async {
             connectivity,
           ),
         ),
-        // Override the userInfoRepositoryProvider
-        persistence.firestoreSyncServiceProvider.overrideWithValue(
-          FirestoreSyncService(),
-        ),
+        // Add any other overrides as needed...
       ],
       child: const MacroCalculatorApp(),
     ),

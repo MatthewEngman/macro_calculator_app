@@ -5,7 +5,6 @@ import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import '../../features/profile/data/repositories/user_info_repository_sqlite_impl.dart';
 import '../../features/calculator/data/repositories/calculator_repository_sqlite_impl.dart';
 import '../../features/meal_plan/data/repositories/meal_plan_repository_sqlite_impl.dart';
 import 'data_sync_manager.dart';
@@ -20,12 +19,6 @@ final firestoreProvider = Provider<FirebaseFirestore>(
 final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
 
 // Repository providers
-final userInfoRepositorySQLiteProvider = Provider<UserInfoRepositorySQLiteImpl>(
-  (ref) {
-    final auth = ref.watch(firebaseAuthProvider);
-    return UserInfoRepositorySQLiteImpl(auth);
-  },
-);
 
 final calculatorRepositorySQLiteProvider =
     Provider<CalculatorRepositorySQLiteImpl>((ref) {
