@@ -61,7 +61,6 @@ class SyncStatusWidget extends ConsumerWidget {
         label = 'Sign in to sync';
         break;
       case SyncStatus.idle:
-      default:
         icon = Icons.cloud_queue;
         color = colorScheme.onSurfaceVariant;
         label = 'Waiting to sync';

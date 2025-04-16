@@ -28,7 +28,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
   String _selectedSex = 'male';
   ActivityLevel _selectedActivityLevel = ActivityLevel.sedentary;
   Goal _selectedGoal = Goal.maintain;
-  bool _initialized = false;
 
   @override
   void initState() {
@@ -105,8 +104,6 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
         // Try to load default macro to prefill calculator
         _loadDefaultMacroValues();
       }
-
-      _initialized = true;
     } catch (e) {
       debugPrint('Error initializing calculator: $e');
     }
@@ -152,6 +149,13 @@ class _CalculatorScreenState extends ConsumerState<CalculatorScreen> {
                 floating: false,
                 pinned: true,
                 centerTitle: true,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.info_outline),
+                    onPressed: () => _showCalculationInfoDialog(context),
+                    tooltip: 'Calculation Method',
+                  ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   centerTitle: true,
                   title: const Text(

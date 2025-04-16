@@ -1,3 +1,6 @@
+import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
+
+import 'src/core/persistence/firestore_sync_service.dart';
 import 'package:macro_masher/src/core/persistence/persistence_service.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/profile_repository_impl.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/user_info_repository_firestore_impl.dart';
@@ -13,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -37,13 +39,20 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
 
   // Initialize SQLite database
-  final Database database = await DatabaseHelper.instance.database;
+  final database = await DatabaseHelper.instance.database;
 
+  // Initialize connectivity
   final connectivity = Connectivity();
 
   // Initialize the persistence service
   final persistenceService = PersistenceService(database);
   await persistenceService.initialize();
+
+  // Initialize local storage service
+  final localStorageService = LocalStorageService(persistenceService);
+
+  // Initialize FirestoreSyncService with the local storage service
+  await FirestoreSyncService.initialize(localStorageService);
 
   runApp(
     ProviderScope(
@@ -87,21 +96,8 @@ void main() async {
           ),
         ),
         // Override the userInfoRepositoryProvider
-        userInfoRepositoryProvider.overrideWithValue(
-          UserInfoRepositoryHybridImpl(
-            UserInfoRepositorySQLiteImpl(FirebaseAuth.instance),
-            UserInfoRepositoryFirestoreImpl(
-              FirebaseFirestore.instance,
-              FirebaseAuth.instance,
-            ),
-            FirebaseAuth.instance,
-            connectivity,
-            DataSyncManager(
-              FirebaseAuth.instance,
-              FirebaseFirestore.instance,
-              connectivity,
-            ),
-          ),
+        persistence.firestoreSyncServiceProvider.overrideWithValue(
+          FirestoreSyncService(),
         ),
       ],
       child: const MacroCalculatorApp(),

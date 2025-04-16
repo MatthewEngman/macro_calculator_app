@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart';
 import '../../domain/entities/user_info.dart';
 import '../providers/user_info_provider.dart';
 import '../providers/settings_provider.dart';
@@ -76,22 +77,27 @@ class UserInfoTab extends ConsumerWidget {
                           : DismissDirection.endToStart,
                   onDismissed: (direction) {
                     if (userInfo.id != null && !userInfo.isDefault) {
-                      ref
-                          .read(userInfoProvider.notifier)
-                          .deleteUserInfo(userInfo.id!);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Profile deleted',
-                            style: TextStyle(
-                              color: colorScheme.onSecondaryContainer,
+                      final authInstance = ref.read(firebaseAuthProvider);
+                      final userId = authInstance.currentUser?.uid;
+
+                      if (userId != null) {
+                        ref
+                            .read(userInfoProvider.notifier)
+                            .deleteUserInfo(userId, userInfo.id!);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Profile deleted',
+                              style: TextStyle(
+                                color: colorScheme.onSecondaryContainer,
+                              ),
                             ),
+                            backgroundColor: colorScheme.secondaryContainer,
+                            showCloseIcon: true,
+                            behavior: SnackBarBehavior.floating,
                           ),
-                          backgroundColor: colorScheme.secondaryContainer,
-                          showCloseIcon: true,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                        );
+                      }
                     }
                   },
                   child: Padding(
@@ -343,25 +349,33 @@ class UserInfoTab extends ConsumerWidget {
                     units: units,
                   );
 
-                  // Save user info
-                  ref.read(userInfoProvider.notifier).saveUserInfo(userInfo);
+                  // Get the current user ID
+                  final authInstance = ref.read(firebaseAuthProvider);
+                  final userId = authInstance.currentUser?.uid;
 
-                  // Close dialog
-                  Navigator.of(context).pop();
+                  if (userId != null) {
+                    // Save user info
+                    ref
+                        .read(userInfoProvider.notifier)
+                        .saveUserInfo(userId, userInfo);
 
-                  // Show success message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Profile saved successfully',
-                        style: TextStyle(
-                          color: colorScheme.onSecondaryContainer,
+                    // Close dialog
+                    Navigator.of(context).pop();
+
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Profile saved successfully',
+                          style: TextStyle(
+                            color: colorScheme.onSecondaryContainer,
+                          ),
                         ),
+                        backgroundColor: colorScheme.secondaryContainer,
+                        behavior: SnackBarBehavior.floating,
                       ),
-                      backgroundColor: colorScheme.secondaryContainer,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                    );
+                  }
                 },
                 child: const Text('Save'),
               ),
@@ -380,19 +394,19 @@ class UserInfoTab extends ConsumerWidget {
         return 'Gain Weight';
     }
   }
+}
 
-  String _getActivityLevelLabel(ActivityLevel level) {
-    switch (level) {
-      case ActivityLevel.sedentary:
-        return 'Sedentary';
-      case ActivityLevel.lightlyActive:
-        return 'Lightly Active';
-      case ActivityLevel.moderatelyActive:
-        return 'Moderately Active';
-      case ActivityLevel.veryActive:
-        return 'Very Active';
-      case ActivityLevel.extraActive:
-        return 'Extra Active';
-    }
+String _getActivityLevelLabel(ActivityLevel level) {
+  switch (level) {
+    case ActivityLevel.sedentary:
+      return 'Sedentary';
+    case ActivityLevel.lightlyActive:
+      return 'Lightly Active';
+    case ActivityLevel.moderatelyActive:
+      return 'Moderately Active';
+    case ActivityLevel.veryActive:
+      return 'Very Active';
+    case ActivityLevel.extraActive:
+      return 'Extra Active';
   }
 }

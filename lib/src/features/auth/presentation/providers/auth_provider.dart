@@ -63,7 +63,7 @@ final authStateListenerProvider = Provider<void>((ref) {
               goal: Goal.maintain,
               units: Units.imperial,
             );
-            userInfoNotifier.saveUserInfo(defaultProfile);
+            userInfoNotifier.saveUserInfo(user.uid, defaultProfile);
           }
         });
       } else if (user != null && user.isAnonymous) {

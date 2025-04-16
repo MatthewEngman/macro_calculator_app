@@ -1,6 +1,7 @@
 // lib/src/core/persistence/repository_providers.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -38,6 +39,11 @@ final mealPlanRepositorySQLiteProvider = Provider<MealPlanRepositorySQLiteImpl>(
     return MealPlanRepositorySQLiteImpl(auth);
   },
 );
+
+// FirestoreSyncService provider
+final firestoreSyncServiceProvider = Provider<FirestoreSyncService>((ref) {
+  return FirestoreSyncService();
+});
 
 // Data sync manager provider
 final dataSyncManagerProvider = Provider<DataSyncManager>((ref) {

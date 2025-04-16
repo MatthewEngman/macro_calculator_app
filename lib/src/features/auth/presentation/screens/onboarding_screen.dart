@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart'
+    as persistence;
 import '../../../profile/domain/entities/user_info.dart'; // Assuming Goal, ActivityLevel, Units are defined here
 import '../../../profile/presentation/providers/user_info_provider.dart';
 import '../../../profile/presentation/providers/settings_provider.dart'; // Assuming sharedPreferencesProvider is defined via this import chain
@@ -109,6 +111,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final prefs = ref.read(sharedPreferencesProvider);
       final calculatorNotifier = ref.read(calculatorProvider.notifier);
       final profileNotifier = ref.read(profileProvider.notifier);
+      final auth = ref.read(persistence.firebaseAuthProvider);
+      final currentUser = auth.currentUser;
 
       // Create user profile from collected data (using original defaults logic)
       final userInfo = UserInfo(
@@ -124,7 +128,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       );
 
       // Save user profile
-      await userInfoNotifier.saveUserInfo(userInfo);
+      if (currentUser != null) {
+        await userInfoNotifier.saveUserInfo(currentUser.uid, userInfo);
+      } else {
+        // Handle case where user is not authenticated
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: User not authenticated'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
 
       // Set the calculator values based on user profile
       calculatorNotifier.weight = userInfo.weight ?? 70;
