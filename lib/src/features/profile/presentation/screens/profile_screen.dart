@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/profile_provider.dart';
-import '../providers/user_info_provider.dart';
 import '../widgets/saved_macro_card.dart';
 import '../widgets/user_info_tab.dart';
-import '../../domain/entities/user_info.dart';
-import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../auth/presentation/screens/account_upgrade_screen.dart';
 
@@ -16,9 +13,10 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isAnonymous = ref.watch(authRepositoryProvider).isUserAnonymous;
 
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         backgroundColor: colorScheme.surface,
         appBar: AppBar(
@@ -34,20 +32,6 @@ class ProfileScreen extends ConsumerWidget {
             ),
           ),
           actions: [
-            // Check if the user is anonymous
-            if (ref.watch(authRepositoryProvider).currentUser?.isAnonymous ??
-                false)
-              IconButton(
-                icon: const Icon(Icons.upgrade),
-                tooltip: 'Upgrade Account',
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AccountUpgradeScreen(),
-                    ),
-                  );
-                },
-              ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
@@ -102,15 +86,86 @@ class ProfileScreen extends ConsumerWidget {
             unselectedLabelColor: colorScheme.onSurfaceVariant,
             indicatorColor: colorScheme.primary,
             dividerColor: Colors.transparent,
-            tabs: const [
-              Tab(icon: Icon(Icons.history), text: 'Saved Results'),
-              Tab(icon: Icon(Icons.person), text: 'Profiles'),
-              Tab(icon: Icon(Icons.cloud), text: 'Firebase Test'),
-            ],
+            tabs: const [Tab(text: 'Profile'), Tab(text: 'Saved')],
           ),
         ),
-        body: TabBarView(
-          children: [_SavedResultsTab(), UserInfoTab(), _FirestoreTestTab()],
+        body: Stack(
+          children: [
+            TabBarView(
+              children: [const UserInfoTab(), const _SavedResultsTab()],
+            ),
+            // Show account upgrade banner for anonymous users
+            if (isAnonymous)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: colorScheme.primary,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'You\'re using a guest account',
+                              style: Theme.of(
+                                context,
+                              ).textTheme.titleMedium?.copyWith(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your data is only stored on this device. Sign in with Google to sync your data across devices and keep it safe.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const AccountUpgradeScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.upgrade),
+                        label: const Text('Upgrade Account'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colorScheme.primary,
+                          foregroundColor: colorScheme.onPrimary,
+                          minimumSize: const Size(double.infinity, 48),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -118,6 +173,8 @@ class ProfileScreen extends ConsumerWidget {
 }
 
 class _SavedResultsTab extends ConsumerWidget {
+  const _SavedResultsTab();
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final macros = ref.watch(profileProvider);
@@ -222,229 +279,6 @@ class _SavedResultsTab extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-    );
-  }
-}
-
-class _FirestoreTestTab extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final userInfos = ref.watch(userInfoProvider);
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Scaffold(
-      body: userInfos.when(
-        data: (data) {
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Firestore Integration Test',
-                  style: textTheme.titleLarge,
-                ),
-              ),
-              Expanded(
-                child:
-                    data.isEmpty
-                        ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cloud_off,
-                                size: 64,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No profiles in Firestore',
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                        : ListView.builder(
-                          itemCount: data.length,
-                          itemBuilder: (context, index) {
-                            final userInfo = data[index];
-                            return ListTile(
-                              title: Text(
-                                'Profile ${index + 1}${userInfo.isDefault ? ' (Default)' : ''}',
-                              ),
-                              subtitle: Text(
-                                'Age: ${userInfo.age ?? 'N/A'}, Sex: ${userInfo.sex}, Goal: ${userInfo.goal}',
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.star,
-                                      color:
-                                          userInfo.isDefault
-                                              ? Colors.amber
-                                              : colorScheme.onSurfaceVariant,
-                                    ),
-                                    onPressed: () {
-                                      if (!userInfo.isDefault &&
-                                          userInfo.id != null) {
-                                        ref
-                                            .read(userInfoProvider.notifier)
-                                            .setDefaultUserInfo(userInfo.id!);
-                                      }
-                                    },
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.delete,
-                                      color:
-                                          userInfo.isDefault
-                                              ? colorScheme.onSurfaceVariant
-                                                  .withOpacity(0.5)
-                                              : colorScheme.error,
-                                    ),
-                                    onPressed:
-                                        userInfo.isDefault
-                                            ? null
-                                            : () {
-                                              if (userInfo.id != null) {
-                                                ref
-                                                    .read(
-                                                      userInfoProvider.notifier,
-                                                    )
-                                                    .deleteUserInfo(
-                                                      userInfo.id!,
-                                                    );
-                                              }
-                                            },
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stack) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.error_outline, size: 64, color: colorScheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error connecting to Firestore',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    error.toString(),
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _showAddProfileDialog(context, ref);
-        },
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
-
-  void _showAddProfileDialog(BuildContext context, WidgetRef ref) {
-    final TextEditingController ageController = TextEditingController();
-    String selectedSex = 'male';
-    var selectedGoal = Goal.maintain;
-    var selectedActivity = ActivityLevel.moderatelyActive;
-    var selectedUnits = Units.imperial;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Add Test Profile'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: ageController,
-                    decoration: const InputDecoration(labelText: 'Age'),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: selectedSex,
-                    decoration: const InputDecoration(labelText: 'Sex'),
-                    items: const [
-                      DropdownMenuItem(value: 'male', child: Text('Male')),
-                      DropdownMenuItem(value: 'female', child: Text('Female')),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        selectedSex = value;
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<Goal>(
-                    value: selectedGoal,
-                    decoration: const InputDecoration(labelText: 'Goal'),
-                    items:
-                        Goal.values.map((goal) {
-                          return DropdownMenuItem(
-                            value: goal,
-                            child: Text(goal.toString().split('.').last),
-                          );
-                        }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        selectedGoal = value;
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  // Create a new UserInfo object
-                  final newUserInfo = UserInfo(
-                    age: int.tryParse(ageController.text),
-                    sex: selectedSex,
-                    goal: selectedGoal,
-                    activityLevel: selectedActivity,
-                    units: selectedUnits,
-                  );
-
-                  // Save to Firestore
-                  ref.read(userInfoProvider.notifier).saveUserInfo(newUserInfo);
-                  Navigator.pop(context);
-                },
-                child: const Text('Add'),
-              ),
-            ],
           ),
     );
   }

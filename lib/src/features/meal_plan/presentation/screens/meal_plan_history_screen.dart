@@ -1,26 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/meal_plan.dart';
-import '../../data/meal_plan_db.dart';
 import 'package:go_router/go_router.dart';
 import '../../services/meal_plan_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/persistence/repository_providers.dart';
 
-class MealPlanHistoryScreen extends StatefulWidget {
+class MealPlanHistoryScreen extends ConsumerStatefulWidget {
   const MealPlanHistoryScreen({super.key});
 
   @override
-  State<MealPlanHistoryScreen> createState() => _MealPlanHistoryScreenState();
+  ConsumerState<MealPlanHistoryScreen> createState() =>
+      _MealPlanHistoryScreenState();
 }
 
-class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
+class _MealPlanHistoryScreenState extends ConsumerState<MealPlanHistoryScreen> {
   late Future<List<MealPlan>> _mealPlansFuture;
   bool _isApiAvailable = true;
 
   @override
   void initState() {
     super.initState();
-    _mealPlansFuture = MealPlanDB.getAllPlans();
+    _initializeMealPlans();
     _checkApiAvailability();
+  }
+
+  Future<void> _initializeMealPlans() async {
+    try {
+      final repository = await ref.read(
+        mealPlanRepositorySQLiteProvider.future,
+      );
+      setState(() {
+        _mealPlansFuture = repository.getAllMealPlans();
+      });
+    } catch (e, stackTrace) {
+      print('Error initializing meal plans: $e\n$stackTrace');
+      setState(() {
+        _mealPlansFuture = Future.error(e, stackTrace);
+      });
+    }
   }
 
   Future<void> _checkApiAvailability() async {
@@ -41,11 +59,33 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
     }
   }
 
-  void _refreshMealPlans() {
+  Future<void> _refreshMealPlans() async {
+    final repository = await ref.read(mealPlanRepositorySQLiteProvider.future);
     setState(() {
-      _mealPlansFuture = MealPlanDB.getAllPlans();
+      _mealPlansFuture = repository.getAllMealPlans();
     });
     _checkApiAvailability();
+  }
+
+  Future<void> _deleteMealPlan(String id) async {
+    try {
+      final repository = await ref.read(
+        mealPlanRepositorySQLiteProvider.future,
+      );
+      await repository.deleteMealPlan(id);
+      await _refreshMealPlans();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Meal Plan deleted.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting meal plan: $e')));
+      }
+    }
   }
 
   @override
@@ -168,9 +208,7 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
                 }
 
                 return RefreshIndicator(
-                  onRefresh: () async {
-                    _refreshMealPlans();
-                  },
+                  onRefresh: _refreshMealPlans,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: mealPlans.length,
@@ -181,6 +219,7 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
                         onTap: () {
                           context.go('/meal-plans/result', extra: plan);
                         },
+                        onDelete: () => _deleteMealPlan(plan.id!),
                       );
                     },
                   ),
@@ -197,19 +236,13 @@ class _MealPlanHistoryScreenState extends State<MealPlanHistoryScreen> {
 class _MealPlanHistoryCard extends StatelessWidget {
   final MealPlan mealPlan;
   final VoidCallback onTap;
+  final VoidCallback onDelete;
 
-  const _MealPlanHistoryCard({required this.mealPlan, required this.onTap});
-
-  String _getFeedbackIcon() {
-    switch (mealPlan.feedback.toLowerCase()) {
-      case 'liked':
-        return '👍';
-      case 'disliked':
-        return '👎';
-      default:
-        return '📝';
-    }
-  }
+  const _MealPlanHistoryCard({
+    required this.mealPlan,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -235,24 +268,32 @@ class _MealPlanHistoryCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      '${mealPlan.diet.toUpperCase()} Diet',
+                      'Generated: ${mealPlan.createdAt != null ? dateFormat.format(mealPlan.createdAt!) : 'N/A'}',
                       style: textTheme.titleMedium?.copyWith(
                         color: colorScheme.onSurface,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  Text(
-                    _getFeedbackIcon(),
-                    style: const TextStyle(fontSize: 20),
+                  IconButton(
+                    icon: Icon(Icons.delete_outline, color: colorScheme.error),
+                    onPressed: onDelete,
+                    tooltip: 'Delete Plan',
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               Text(
-                'Goal: ${mealPlan.goal}',
+                'Time: ${mealPlan.createdAt != null ? timeFormat.format(mealPlan.createdAt!) : 'N/A'}',
                 style: textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurface,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Calories: ${mealPlan.totalCalories?.toStringAsFixed(0) ?? 'N/A'} kcal',
+                style: textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
               const SizedBox(height: 8),
@@ -260,14 +301,16 @@ class _MealPlanHistoryCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${mealPlan.macros['calories']} kcal',
+                    '${mealPlan.totalCalories?.toStringAsFixed(0) ?? 'N/A'} kcal',
                     style: textTheme.bodyMedium?.copyWith(
                       color: colorScheme.primary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   Text(
-                    '${dateFormat.format(mealPlan.timestamp)} at ${timeFormat.format(mealPlan.timestamp)}',
+                    mealPlan.createdAt != null
+                        ? '${dateFormat.format(mealPlan.createdAt!)} at ${timeFormat.format(mealPlan.createdAt!)}'
+                        : 'N/A',
                     style: textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),

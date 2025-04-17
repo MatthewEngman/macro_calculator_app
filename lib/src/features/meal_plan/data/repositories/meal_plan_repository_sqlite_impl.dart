@@ -1,70 +1,148 @@
 // lib/src/features/meal_plan/data/repositories/meal_plan_repository_sqlite_impl.dart
 
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+// Correct the package name in the import paths
+import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import '../../models/meal_plan.dart';
 import '../meal_plan_db.dart';
-import '../meal_log_db.dart';
-import '../../models/meal_log.dart';
+// Import uuid if you plan to use it for ID generation
+// import 'package:uuid/uuid.dart';
 
 class MealPlanRepositorySQLiteImpl {
-  final firebase_auth.FirebaseAuth _auth;
+  final LocalStorageService _localStorageService;
+  String? _firebaseUserId;
+  String? _localUserId; // Add localUserId field
 
-  MealPlanRepositorySQLiteImpl(this._auth);
-
-  // Helper method to get the current user ID
-  String? get _userId => _auth.currentUser?.uid;
-  String get _requiredUserId {
-    final userId = _userId;
-    if (userId == null) {
-      throw StateError('User must be logged in to perform this operation');
-    }
-    return userId;
+  MealPlanRepositorySQLiteImpl(this._localStorageService) {
+    _initializeUserIds();
   }
+
+  // Initialize both Firebase and local user IDs
+  Future<void> _initializeUserIds() async {
+    // Get Firebase User ID directly from FirebaseAuth
+    _firebaseUserId = firebase_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (_firebaseUserId != null) {
+      // Directly query UserDB to find the local user associated with the Firebase ID
+      print(
+        'MealPlanRepositorySQLiteImpl: Querying UserDB for local user ID associated with Firebase ID $_firebaseUserId.',
+      );
+      final userFromDb = await UserDB.getUserByFirebaseId(
+        _firebaseUserId!,
+      ); // Use UserDB directly
+      _localUserId =
+          userFromDb
+              ?.id; // Get local ID from the UserInfo object returned by UserDB
+
+      if (_localUserId == null) {
+        print(
+          'MealPlanRepositorySQLiteImpl: No local user found in UserDB for Firebase ID $_firebaseUserId.',
+        );
+      }
+    } else {
+      // Handle case where there is no Firebase user logged in
+      _localUserId = null; // Ensure local ID is also null
+      print('MealPlanRepositorySQLiteImpl: No Firebase user logged in.');
+    }
+    // TODO: Consider adding listeners for auth changes to update IDs
+    print(
+      'MealPlanRepositorySQLiteImpl Initialized: FirebaseID=$_firebaseUserId, LocalID=$_localUserId',
+    );
+  }
+
+  // Helper to ensure local user ID is available before DB operations
+  Future<String?> _ensureLocalUserId() async {
+    if (_localUserId == null) {
+      print(
+        'MealPlanRepositorySQLiteImpl: Local user ID is null, attempting re-initialization.',
+      );
+      await _initializeUserIds(); // Attempt re-initialization
+    }
+    if (_localUserId == null) {
+      // This indicates a problem - user is likely not logged in or profile data is missing
+      print(
+        'Error: MealPlanRepositorySQLiteImpl - Local user ID could not be determined after initialization.',
+      );
+      // Depending on the desired behavior, you might throw an error here
+      // or allow operations that don't strictly require a user ID.
+    }
+    return _localUserId;
+  }
+
+  // --- Meal Plan Methods ---
 
   Future<List<MealPlan>> getAllMealPlans() async {
-    return await MealPlanDB.getAllPlans();
+    final userId = await _ensureLocalUserId();
+    if (userId == null) {
+      print('Error: Cannot get meal plans, user not initialized.');
+      return []; // Return empty list if user ID is not available
+    }
+    // Ensure MealPlanDB.getAllPlansForUser expects and uses the userId
+    return await MealPlanDB.getAllPlansForUser(userId);
   }
 
-  Future<int> saveMealPlan(MealPlan mealPlan) async {
-    return await MealPlanDB.insertMealPlan(mealPlan);
+  Future<String?> saveMealPlan(MealPlan plan) async {
+    final userId = await _ensureLocalUserId();
+    if (userId == null) {
+      print('Error: Cannot save meal plan, user not initialized.');
+      return null;
+    }
+    // Ensure the plan has the correct userId and a generated ID if missing
+    final planToSave = plan.copyWith(
+      userId: userId,
+      // Generate ID if null - requires uuid package and uncommenting
+      // id: plan.id ?? Uuid().v4(),
+    );
+
+    // Check if ID is still null after potential generation (important if not generating above)
+    if (planToSave.id == null) {
+      print('Error: Cannot save meal plan, ID is null.');
+      // Consider generating ID here if not done above, or return error
+      // planToSave = planToSave.copyWith(id: Uuid().v4()); // Example
+      // if (planToSave.id == null) return null; // Still failed
+      return null; // Return null if ID is required and missing
+    }
+
+    try {
+      // Ensure MealPlanDB.insertMealPlan handles the plan and optionally the userId
+      // If insertMealPlan uses planToSave.userId internally, passing userId might be redundant
+      await MealPlanDB.insertMealPlan(planToSave, userId);
+      return planToSave.id;
+    } catch (e) {
+      print('Error saving meal plan to DB: $e');
+      return null;
+    }
   }
 
-  Future<MealPlan?> getMealPlanById(int id) async {
-    return await MealPlanDB.getMealPlan(id);
+  Future<MealPlan?> getMealPlanById(String id) async {
+    // Fetch the plan using MealPlanDB
+    final plan = await MealPlanDB.getMealPlanById(id);
+
+    // Optional but recommended: Verify ownership
+    final userId = await _ensureLocalUserId();
+    if (plan != null && userId != null && plan.userId != userId) {
+      print('Error: Meal plan $id does not belong to user $userId.');
+      return null;
+    }
+    return plan;
   }
 
-  Future<int> updateMealPlanFeedback(int id, String feedback) async {
-    return await MealPlanDB.updateFeedback(id, feedback);
-  }
+  // Add the missing deleteMealPlan method
+  Future<int> deleteMealPlan(String id) async {
+    // Optional: Add user ownership check here if needed before deleting
+    // final userId = await _ensureLocalUserId();
+    // if (userId == null) {
+    //   print('Error: Cannot delete meal plan, user not initialized.');
+    //   return 0; // Indicate failure
+    // }
+    // // Optional: Fetch plan first to verify ownership
+    // final plan = await getMealPlanById(id);
+    // if (plan == null || plan.userId != userId) {
+    //   print('Error: Cannot delete meal plan $id, not found or not owned by user $userId.');
+    //   return 0;
+    // }
 
-  Future<int> deleteMealPlan(int id) async {
+    // Call the static method in MealPlanDB to perform the deletion
     return await MealPlanDB.deleteMealPlan(id);
-  }
-
-  // Meal logging methods
-  Future<List<MealLog>> getMealLogsForDay(DateTime date) async {
-    return await MealLogDB.getMealLogsForDay(
-      date,
-      firebaseUserId: _requiredUserId,
-    );
-  }
-
-  Future<List<MealLog>> getMealLogsForDateRange(
-    DateTime startDate,
-    DateTime endDate,
-  ) async {
-    return await MealLogDB.getMealLogsForDateRange(
-      startDate,
-      endDate,
-      firebaseUserId: _requiredUserId,
-    );
-  }
-
-  Future<String> saveMealLog(MealLog mealLog) async {
-    return await MealLogDB.insertMealLog(mealLog);
-  }
-
-  Future<int> deleteMealLog(String id) async {
-    return await MealLogDB.deleteMealLog(id);
   }
 }

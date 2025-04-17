@@ -1,18 +1,12 @@
 import 'package:riverpod/riverpod.dart';
-import 'package:sqflite/sqflite.dart';
 import '../../../../core/persistence/persistence_service.dart';
+import '../../../../core/persistence/database_provider.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../domain/entities/calculation_input.dart';
 import '../../domain/entities/macro_result.dart';
 import '../../domain/use_cases/calculate_macros_use_case.dart';
 import '../../domain/repositories/calculator_settings_repository.dart';
 import '../../data/repositories/calculator_settings_repository_impl.dart';
-
-// Provider for the initialized Database instance
-final databaseProvider = Provider<Database>((ref) {
-  // This will be overridden in main.dart after initialization
-  throw UnimplementedError('Database provider must be overridden');
-});
 
 // Provider for the PersistenceService using the Database
 final persistenceServiceProvider = Provider<PersistenceService>((ref) {

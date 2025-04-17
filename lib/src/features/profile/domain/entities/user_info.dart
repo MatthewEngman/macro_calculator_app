@@ -12,6 +12,8 @@ class UserInfo {
   final String? id;
   final bool isDefault;
   final String? name;
+  final DateTime? lastModified;
+  final double? weightChangeRate;
 
   UserInfo({
     this.weight,
@@ -25,6 +27,8 @@ class UserInfo {
     this.id,
     this.isDefault = false,
     this.name,
+    this.lastModified,
+    this.weightChangeRate = 1.0,
   });
 
   UserInfo copyWith({
@@ -39,6 +43,8 @@ class UserInfo {
     String? id,
     bool? isDefault,
     String? name,
+    DateTime? lastModified,
+    double? weightChangeRate,
   }) {
     return UserInfo(
       weight: weight ?? this.weight,
@@ -52,6 +58,8 @@ class UserInfo {
       id: id ?? this.id,
       isDefault: isDefault ?? this.isDefault,
       name: name ?? this.name,
+      lastModified: lastModified ?? this.lastModified,
+      weightChangeRate: weightChangeRate ?? this.weightChangeRate,
     );
   }
 
@@ -62,12 +70,14 @@ class UserInfo {
       'inches': inches,
       'age': age,
       'sex': sex,
-      'activityLevel': activityLevel.index,
+      'activity_level': activityLevel.index,
       'goal': goal.index,
       'units': units.index,
       'id': id,
-      'isDefault': isDefault,
+      'is_default': isDefault,
       'name': name,
+      'last_modified': lastModified?.millisecondsSinceEpoch,
+      'weight_change_rate': weightChangeRate,
     };
   }
 
@@ -78,12 +88,17 @@ class UserInfo {
       inches: json['inches'],
       age: json['age'],
       sex: json['sex'] ?? 'male',
-      activityLevel: ActivityLevel.values[json['activityLevel'] ?? 0],
+      activityLevel: ActivityLevel.values[json['activity_level'] ?? 0],
       goal: Goal.values[json['goal'] ?? 1],
       units: Units.values[json['units'] ?? 0],
       id: json['id'],
-      isDefault: json['isDefault'] ?? false,
+      isDefault: json['is_default'] ?? false,
       name: json['name'],
+      lastModified:
+          json['last_modified'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(json['last_modified'])
+              : null,
+      weightChangeRate: json['weight_change_rate'] ?? 1.0,
     );
   }
 }

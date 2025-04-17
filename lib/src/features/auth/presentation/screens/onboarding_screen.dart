@@ -1,11 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart'
+    as persistence;
+import 'package:macro_masher/src/core/persistence/shared_preferences_provider.dart';
 import '../../../profile/domain/entities/user_info.dart'; // Assuming Goal, ActivityLevel, Units are defined here
-import '../../../profile/presentation/providers/user_info_provider.dart';
 import '../../../profile/presentation/providers/settings_provider.dart'; // Assuming sharedPreferencesProvider is defined via this import chain
 import '../../../calculator/presentation/providers/calculator_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
+
+Future<void> completeOnboarding(UserInfo userInfo, WidgetRef ref) async {
+  final prefs = ref.read(sharedPreferencesProvider);
+  final syncService = ref.read(persistence.firestoreSyncServiceProvider);
+  final auth = ref.read(persistence.firebaseAuthProvider);
+  final userId = auth.currentUser?.uid;
+  if (userId != null) {
+    await syncService.saveUserInfo(userId, userInfo);
+    await prefs.setBool('onboarding_complete', true);
+  }
+}
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -35,7 +48,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   // Goal and activity level
   Goal _selectedGoal = Goal.maintain;
   ActivityLevel _selectedActivityLevel = ActivityLevel.moderatelyActive;
-  final Units _selectedUnits = Units.imperial;
+  Units _selectedUnits = Units.imperial;
+
+  // Weight change rate (lbs/kg per week)
+  double _weightChangeRate = 1.0;
 
   @override
   void initState() {
@@ -103,28 +119,48 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   Future<void> _finalizeOnboarding() async {
     if (!mounted) return;
 
-    // Capture all provider references first
-    final userInfoNotifier = ref.read(userInfoProvider.notifier);
-    final prefs = ref.read(sharedPreferencesProvider);
-    final calculatorNotifier = ref.read(calculatorProvider.notifier);
-    final profileNotifier = ref.read(profileProvider.notifier);
-
-    // Create user profile from collected data (using original defaults logic)
-    final userInfo = UserInfo(
-      name: _nameController.text,
-      age: int.tryParse(_ageController.text) ?? 30,
-      sex: _selectedGender ?? 'male',
-      weight: double.tryParse(_weightController.text) ?? 70,
-      feet: int.tryParse(_heightFeetController.text) ?? 5,
-      inches: int.tryParse(_heightInchesController.text) ?? 10,
-      activityLevel: _selectedActivityLevel,
-      goal: _selectedGoal,
-      units: _selectedUnits,
-    );
-
     try {
-      // Save user profile
-      await userInfoNotifier.saveUserInfo(userInfo);
+      // Capture all provider references first
+      final prefs = ref.read(sharedPreferencesProvider);
+      final calculatorNotifier = ref.read(calculatorProvider.notifier);
+      final profileNotifier = ref.read(profileProvider.notifier);
+      final auth = ref.read(persistence.firebaseAuthProvider);
+      final currentUser = auth.currentUser;
+
+      // Generate a unique ID for the user profile
+      final String uniqueId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // Create user profile from collected data (using original defaults logic)
+      final userInfo = UserInfo(
+        id: uniqueId, // Add the unique ID here
+        name: _nameController.text,
+        age: int.tryParse(_ageController.text) ?? 30,
+        sex: _selectedGender ?? 'male',
+        weight: double.tryParse(_weightController.text) ?? 70,
+        feet: int.tryParse(_heightFeetController.text) ?? 5,
+        inches: int.tryParse(_heightInchesController.text) ?? 10,
+        activityLevel: _selectedActivityLevel,
+        goal: _selectedGoal,
+        units: _selectedUnits,
+        isDefault: true, // Set as default since it's the first profile
+        lastModified: DateTime.now(), // Add timestamp for conflict resolution
+        weightChangeRate: _weightChangeRate, // Add weight change rate
+      );
+
+      // Check if user is authenticated
+      if (currentUser == null) {
+        // Handle case where user is not authenticated
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: User not authenticated'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // User is authenticated, proceed with saving
+      await completeOnboarding(userInfo, ref);
 
       // Set the calculator values based on user profile
       calculatorNotifier.weight = userInfo.weight ?? 70;
@@ -207,9 +243,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       // Mark onboarding as complete
       await prefs.setBool('onboarding_complete', true);
 
-      // Check if widget is still mounted before navigating (original check)
-      if (mounted && context.mounted) {
-        context.go('/');
+      // Check if widget is still mounted before navigating
+      if (mounted) {
+        // Use Future.microtask to ensure navigation happens after the current build cycle
+        Future.microtask(() {
+          if (mounted && context.mounted) {
+            context.go('/');
+          }
+        });
       }
     } catch (e) {
       // Handle any errors that might occur during saving
@@ -218,6 +259,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           SnackBar(content: Text('Error saving profile: ${e.toString()}')),
         );
       }
+      print('Error in _finalizeOnboarding: $e');
     }
   } // <<< Closing brace for _finalizeOnboarding method
 
@@ -344,16 +386,98 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   Widget _buildBodyMeasurementsStep() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Form(
       key: _measurementsFormKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Units toggle
+          Card(
+            elevation: 0,
+            color: colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Measurement Units', style: textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<Units>(
+                          title: const Text('Imperial (lb, ft/in)'),
+                          value: Units.imperial,
+                          groupValue: _selectedUnits,
+                          onChanged: (Units? value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedUnits = value;
+                                // Convert values if needed
+                                if (_weightController.text.isNotEmpty) {
+                                  try {
+                                    final double? weight = double.tryParse(
+                                      _weightController.text,
+                                    );
+                                    if (weight != null) {
+                                      // Convert kg to lbs
+                                      _weightController.text =
+                                          (weight * 2.20462).toStringAsFixed(1);
+                                    }
+                                  } catch (_) {}
+                                }
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<Units>(
+                          title: const Text('Metric (kg, m/cm)'),
+                          value: Units.metric,
+                          groupValue: _selectedUnits,
+                          onChanged: (Units? value) {
+                            if (value != null) {
+                              setState(() {
+                                _selectedUnits = value;
+                                // Convert values if needed
+                                if (_weightController.text.isNotEmpty) {
+                                  try {
+                                    final double? weight = double.tryParse(
+                                      _weightController.text,
+                                    );
+                                    if (weight != null) {
+                                      // Convert lbs to kg
+                                      _weightController.text =
+                                          (weight / 2.20462).toStringAsFixed(1);
+                                    }
+                                  } catch (_) {}
+                                }
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Weight field
           TextFormField(
             controller: _weightController,
-            decoration: const InputDecoration(
-              labelText: 'Weight (lbs)', // Original label
-              prefixIcon: Icon(Icons.monitor_weight),
+            decoration: InputDecoration(
+              labelText:
+                  _selectedUnits == Units.imperial
+                      ? 'Weight (lbs)'
+                      : 'Weight (kg)',
+              prefixIcon: const Icon(Icons.monitor_weight),
             ),
             keyboardType: TextInputType.number,
             validator: (value) {
@@ -367,52 +491,96 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             },
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _heightFeetController,
-                  decoration: const InputDecoration(
-                    labelText: 'Height (feet)',
-                    prefixIcon: Icon(Icons.height),
+
+          // Height fields
+          if (_selectedUnits == Units.imperial)
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _heightFeetController,
+                    decoration: const InputDecoration(
+                      labelText: 'Height (feet)',
+                      prefixIcon: Icon(Icons.height),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      if (int.tryParse(value) == null) {
+                        return 'Invalid';
+                      }
+                      return null;
+                    },
                   ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Required';
-                    }
-                    if (int.tryParse(value) == null) {
-                      return 'Invalid';
-                    }
-                    return null;
-                  },
                 ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextFormField(
-                  controller: _heightInchesController,
-                  decoration: const InputDecoration(labelText: 'Inches'),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Required';
-                    }
-                    final inches = int.tryParse(value);
-                    if (inches == null || inches < 0 || inches > 11) {
-                      return 'Invalid (0-11)';
-                    }
-                    return null;
-                  },
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _heightInchesController,
+                    decoration: const InputDecoration(labelText: 'Inches'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      final inches = int.tryParse(value);
+                      if (inches == null || inches < 0 || inches > 11) {
+                        return 'Invalid (0-11)';
+                      }
+                      return null;
+                    },
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _heightFeetController,
+                    decoration: const InputDecoration(
+                      labelText: 'Height (meters)',
+                      prefixIcon: Icon(Icons.height),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      if (int.tryParse(value) == null) {
+                        return 'Invalid';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextFormField(
+                    controller: _heightInchesController,
+                    decoration: const InputDecoration(labelText: 'Centimeters'),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      final cm = int.tryParse(value);
+                      if (cm == null || cm < 0 || cm > 99) {
+                        return 'Invalid (0-99)';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: 48),
           Center(
             child: FilledButton(
               onPressed: () {
-                // Original validation logic placement
                 if (_measurementsFormKey.currentState!.validate()) {
                   _proceedToNextStep();
                 }
@@ -433,6 +601,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   Widget _buildFitnessGoalsStep() {
     final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,7 +609,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         Text('What is your primary fitness goal?', style: textTheme.titleLarge),
         const SizedBox(height: 24),
         _buildGoalOption(
-          // Calls helper below
           goal: Goal.lose,
           title: 'Lose Weight',
           icon: Icons.trending_down,
@@ -460,10 +628,65 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           icon: Icons.trending_up,
           description: 'Build muscle mass with minimal fat gain',
         ),
+
+        // Only show weight change rate for lose/gain goals
+        if (_selectedGoal != Goal.maintain)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 32),
+              Card(
+                elevation: 0,
+                color: colorScheme.surfaceContainerLow,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _selectedGoal == Goal.lose
+                            ? 'How quickly do you want to lose weight?'
+                            : 'How quickly do you want to gain weight?',
+                        style: textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'A moderate pace of ${_selectedUnits == Units.imperial ? '1-2 pounds' : '0.5-1 kg'} per week is generally recommended for sustainable results.',
+                        style: textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      Slider(
+                        value: _weightChangeRate,
+                        min: 0.5,
+                        max: 2.0,
+                        divisions: 3,
+                        label:
+                            '${_weightChangeRate.toStringAsFixed(1)} ${_selectedUnits == Units.imperial ? 'lbs' : 'kg'}/week',
+                        onChanged: (value) {
+                          setState(() {
+                            _weightChangeRate = value;
+                          });
+                        },
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Gradual', style: textTheme.bodySmall),
+                          Text('Moderate', style: textTheme.bodySmall),
+                          Text('Aggressive', style: textTheme.bodySmall),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
         const SizedBox(height: 48),
         Center(
           child: FilledButton(
-            onPressed: _proceedToNextStep, // No form validation on this step
+            onPressed: _proceedToNextStep,
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
             ),

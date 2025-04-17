@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart';
 import '../../domain/entities/user_info.dart';
 import '../providers/settings_provider.dart';
 import '../providers/user_info_provider.dart';
@@ -221,24 +222,33 @@ class UserInfoCard extends ConsumerWidget {
                       )
                     else
                       OutlinedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           if (userInfo.id != null) {
-                            ref
-                                .read(userInfoProvider.notifier)
-                                .setDefaultUserInfo(userInfo.id!);
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Set as default profile',
-                                  style: TextStyle(
-                                    color: colorScheme.onSecondaryContainer,
+                            final auth = ref.read(firebaseAuthProvider);
+                            final userId = auth.currentUser?.uid;
+                            if (userId != null) {
+                              final syncService = ref.read(
+                                firestoreSyncServiceProvider,
+                              );
+                              await syncService.setDefaultUserInfo(
+                                userId,
+                                userInfo.id!,
+                              );
+                              Navigator.of(context).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Set as default profile',
+                                    style: TextStyle(
+                                      color: colorScheme.onSecondaryContainer,
+                                    ),
                                   ),
+                                  backgroundColor:
+                                      colorScheme.secondaryContainer,
+                                  behavior: SnackBarBehavior.floating,
                                 ),
-                                backgroundColor: colorScheme.secondaryContainer,
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
+                              );
+                            }
                           }
                         },
                         icon: Icon(Icons.star_outline, color: Colors.amber),
@@ -486,7 +496,7 @@ class UserInfoCard extends ConsumerWidget {
                 ),
               ),
               FilledButton(
-                onPressed: () {
+                onPressed: () async {
                   // Update user info with edited values
                   final updatedUserInfo = userInfo.copyWith(
                     weight: double.tryParse(weightController.text),
@@ -505,27 +515,42 @@ class UserInfoCard extends ConsumerWidget {
                     units: units,
                   );
 
-                  // Save updated user info
-                  ref
-                      .read(userInfoProvider.notifier)
-                      .saveUserInfo(updatedUserInfo);
+                  // Get the current user ID
+                  final authInstance = ref.read(firebaseAuthProvider);
+                  final userId = authInstance.currentUser?.uid;
 
-                  // Close dialog
-                  Navigator.of(context).pop();
-
-                  // Show success message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Profile updated successfully',
-                        style: TextStyle(
-                          color: colorScheme.onSecondaryContainer,
+                  if (userId != null) {
+                    // Save updated user info
+                    final syncService = ref.read(firestoreSyncServiceProvider);
+                    await syncService.saveUserInfo(userId, updatedUserInfo);
+                    // Close dialog
+                    Navigator.of(context).pop();
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Profile updated successfully',
+                          style: TextStyle(
+                            color: colorScheme.onSecondaryContainer,
+                          ),
                         ),
+                        backgroundColor: colorScheme.secondaryContainer,
+                        behavior: SnackBarBehavior.floating,
                       ),
-                      backgroundColor: colorScheme.secondaryContainer,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                    );
+                  } else {
+                    // Handle the case where user is not authenticated
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Error: User not authenticated',
+                          style: TextStyle(color: colorScheme.onErrorContainer),
+                        ),
+                        backgroundColor: colorScheme.errorContainer,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
                 },
                 child: const Text('Save'),
               ),
@@ -533,125 +558,125 @@ class UserInfoCard extends ConsumerWidget {
           ),
     );
   }
+}
 
-  void _showCalculationInfoDialog(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+void _showCalculationInfoDialog(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  final textTheme = Theme.of(context).textTheme;
 
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Center(
+  showDialog(
+    context: context,
+    builder:
+        (context) => AlertDialog(
+          title: Center(
+            child: Text(
+              'Macro Calculation Method',
+              style: textTheme.titleLarge?.copyWith(
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildInfoSection(
+                  context,
+                  'Basal Metabolic Rate (BMR)',
+                  'We calculate your BMR using the Harris-Benedict equation:\n\n'
+                      '• Male: 66 + (6.23 × weight in lbs) + (12.7 × height in inches) - (6.8 × age)\n'
+                      '• Female: 655 + (4.35 × weight in lbs) + (4.7 × height in inches) - (4.7 × age)',
+                ),
+                const SizedBox(height: 12),
+                _buildInfoSection(
+                  context,
+                  'Activity Multiplier',
+                  'Your BMR is multiplied by an activity factor:\n\n'
+                      '• Sedentary: 1.2\n'
+                      '• Lightly Active: 1.375\n'
+                      '• Moderately Active: 1.55\n'
+                      '• Very Active: 1.725\n'
+                      '• Extra Active: 1.9',
+                ),
+                const SizedBox(height: 12),
+                _buildInfoSection(
+                  context,
+                  'Target Calories',
+                  'Based on your goal:\n\n'
+                      '• Maintain: Maintenance calories\n'
+                      '• Lose: Maintenance - (weight change rate × 500)\n'
+                      '• Gain: Maintenance + (weight change rate × 500)',
+                ),
+                const SizedBox(height: 12),
+                _buildInfoSection(
+                  context,
+                  'Macronutrient Breakdown',
+                  '• Protein: 1g per pound of body weight\n'
+                      '• Fat: 25% of total calories (9 calories per gram)\n'
+                      '• Carbs: Remaining calories (4 calories per gram)',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
               child: Text(
-                'Macro Calculation Method',
-                style: textTheme.titleLarge?.copyWith(
-                  color: colorScheme.onSurface,
-                ),
+                'Close',
+                style: TextStyle(color: colorScheme.primary),
               ),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildInfoSection(
-                    context,
-                    'Basal Metabolic Rate (BMR)',
-                    'We calculate your BMR using the Harris-Benedict equation:\n\n'
-                        '• Male: 66 + (6.23 × weight in lbs) + (12.7 × height in inches) - (6.8 × age)\n'
-                        '• Female: 655 + (4.35 × weight in lbs) + (4.7 × height in inches) - (4.7 × age)',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoSection(
-                    context,
-                    'Activity Multiplier',
-                    'Your BMR is multiplied by an activity factor:\n\n'
-                        '• Sedentary: 1.2\n'
-                        '• Lightly Active: 1.375\n'
-                        '• Moderately Active: 1.55\n'
-                        '• Very Active: 1.725\n'
-                        '• Extra Active: 1.9',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoSection(
-                    context,
-                    'Target Calories',
-                    'Based on your goal:\n\n'
-                        '• Maintain: Maintenance calories\n'
-                        '• Lose: Maintenance - (weight change rate × 500)\n'
-                        '• Gain: Maintenance + (weight change rate × 500)',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoSection(
-                    context,
-                    'Macronutrient Breakdown',
-                    '• Protein: 1g per pound of body weight\n'
-                        '• Fat: 25% of total calories (9 calories per gram)\n'
-                        '• Carbs: Remaining calories (4 calories per gram)',
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Close',
-                  style: TextStyle(color: colorScheme.primary),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildInfoSection(BuildContext context, String title, String content) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: textTheme.titleMedium?.copyWith(
-            color: colorScheme.primary,
-            fontWeight: FontWeight.bold,
-          ),
+          ],
         ),
-        const SizedBox(height: 4),
-        Text(
-          content,
-          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+  );
+}
+
+Widget _buildInfoSection(BuildContext context, String title, String content) {
+  final colorScheme = Theme.of(context).colorScheme;
+  final textTheme = Theme.of(context).textTheme;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        title,
+        style: textTheme.titleMedium?.copyWith(
+          color: colorScheme.primary,
+          fontWeight: FontWeight.bold,
         ),
-      ],
-    );
-  }
+      ),
+      const SizedBox(height: 4),
+      Text(
+        content,
+        style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+      ),
+    ],
+  );
+}
 
-  String _getGoalLabel(Goal goal) {
-    switch (goal) {
-      case Goal.lose:
-        return 'Lose Weight';
-      case Goal.maintain:
-        return 'Maintain Weight';
-      case Goal.gain:
-        return 'Gain Weight';
-    }
+String _getGoalLabel(Goal goal) {
+  switch (goal) {
+    case Goal.lose:
+      return 'Lose Weight';
+    case Goal.maintain:
+      return 'Maintain Weight';
+    case Goal.gain:
+      return 'Gain Weight';
   }
+}
 
-  String _getActivityLevelLabel(ActivityLevel level) {
-    switch (level) {
-      case ActivityLevel.sedentary:
-        return 'Sedentary';
-      case ActivityLevel.lightlyActive:
-        return 'Lightly Active';
-      case ActivityLevel.moderatelyActive:
-        return 'Moderately Active';
-      case ActivityLevel.veryActive:
-        return 'Very Active';
-      case ActivityLevel.extraActive:
-        return 'Extra Active';
-    }
+String _getActivityLevelLabel(ActivityLevel level) {
+  switch (level) {
+    case ActivityLevel.sedentary:
+      return 'Sedentary';
+    case ActivityLevel.lightlyActive:
+      return 'Lightly Active';
+    case ActivityLevel.moderatelyActive:
+      return 'Moderately Active';
+    case ActivityLevel.veryActive:
+      return 'Very Active';
+    case ActivityLevel.extraActive:
+      return 'Extra Active';
   }
 }
