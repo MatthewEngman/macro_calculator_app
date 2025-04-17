@@ -5,14 +5,17 @@ import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 import '../../domain/entities/user_info.dart';
 import '../../../auth/presentation/providers/auth_provider.dart' as auth;
 import '../../../../core/persistence/repository_providers.dart';
+import '../../../../core/persistence/onboarding_provider.dart';
 
-// Provider for Firestore instance
-final userInfoProvider =
-    StateNotifierProvider<UserInfoNotifier, AsyncValue<List<UserInfo>>>((ref) {
-      final syncService = ref.watch(firestoreSyncServiceProvider);
-      final authProvider = ref.watch(auth.firebaseAuthProvider);
-      return UserInfoNotifier(syncService, authProvider);
-    });
+final userInfoProvider = FutureProvider<List<UserInfo>>((ref) async {
+  final onboardingComplete = ref.watch(onboardingCompleteProvider);
+  if (!onboardingComplete) return [];
+  final syncService = ref.watch(firestoreSyncServiceProvider);
+  final authProvider = ref.watch(auth.firebaseAuthProvider);
+  final userId = authProvider.currentUser?.uid;
+  if (userId == null) return [];
+  return await syncService.getSavedUserInfos(userId);
+});
 
 class UserInfoNotifier extends StateNotifier<AsyncValue<List<UserInfo>>> {
   final FirestoreSyncService _syncService;
@@ -21,6 +24,25 @@ class UserInfoNotifier extends StateNotifier<AsyncValue<List<UserInfo>>> {
   UserInfoNotifier(this._syncService, this._auth)
     : super(const AsyncValue.loading()) {
     loadSavedUserInfos();
+  }
+
+  Future<void> setDefaultMacro(String macroId) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    final userInfos = await _syncService.getSavedUserInfos(userId);
+
+    for (final user in userInfos) {
+      final shouldBeDefault = user.id == macroId;
+      if (user.isDefault != shouldBeDefault) {
+        await _syncService.saveUserInfo(
+          userId,
+          user.copyWith(isDefault: shouldBeDefault),
+        );
+      }
+    }
+
+    await loadSavedUserInfos();
   }
 
   Future<List<UserInfo>> loadSavedUserInfos() async {

@@ -223,16 +223,23 @@ class FirestoreSyncService {
       throw Exception('User not authenticated');
     }
 
+    final userInfoWithId =
+        userInfo.id == null
+            ? userInfo.copyWith(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+            )
+            : userInfo;
+
     try {
       // Save to local storage first
-      await _localStorageService.saveUserInfo(userId, userInfo);
+      await _localStorageService.saveUserInfo(userId, userInfoWithId);
 
       bool isConnected = await checkInternetConnectivity();
       if (!isConnected) {
         _addToSyncQueue({
           'operation': 'save_user_info',
           'userId': userId,
-          'data': userInfo.toJson(),
+          'data': userInfoWithId.toJson(),
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
         return;
@@ -240,20 +247,20 @@ class FirestoreSyncService {
 
       final collectionPath = 'users/$userId/user_infos';
 
-      if (userInfo.id != null) {
+      if (userInfoWithId.id != null) {
         // Update existing user info
         await _firestore
             .collection(collectionPath)
-            .doc(userInfo.id)
-            .set(userInfo.toJson());
+            .doc(userInfoWithId.id)
+            .set(userInfoWithId.toJson());
       } else {
         // Add new user info
         final docRef = await _firestore
             .collection(collectionPath)
-            .add(userInfo.toJson());
+            .add(userInfoWithId.toJson());
 
         // Update the document with its ID
-        final updatedUserInfo = userInfo.copyWith(id: docRef.id);
+        final updatedUserInfo = userInfoWithId.copyWith(id: docRef.id);
         await docRef.update({'id': docRef.id});
 
         // Update local storage with the new ID
@@ -264,7 +271,7 @@ class FirestoreSyncService {
       _addToSyncQueue({
         'operation': 'save_user_info',
         'userId': userId,
-        'data': userInfo.toJson(),
+        'data': userInfoWithId.toJson(),
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
     }
@@ -357,12 +364,27 @@ class FirestoreSyncService {
     }
 
     try {
+      // First try to get from local storage to avoid read-only issues
+      final localUserInfo = await _localStorageService.getDefaultUserInfo(
+        userId,
+      );
+      if (localUserInfo != null &&
+          localUserInfo.name != null &&
+          localUserInfo.age != null &&
+          localUserInfo.weight != null) {
+        print(
+          'FirestoreSyncService: Using complete user info from local storage',
+        );
+        return localUserInfo;
+      }
+
       bool isConnected = await checkInternetConnectivity();
       if (!isConnected) {
         // Return from local storage if offline
-        return await _localStorageService.getDefaultUserInfo(userId);
+        return localUserInfo;
       }
 
+      // Try to get from Firestore
       final snapshot =
           await _firestore
               .collection('users')
@@ -373,13 +395,36 @@ class FirestoreSyncService {
               .get();
 
       if (snapshot.docs.isEmpty) {
+        // If no default user info is found, get all user infos and use the first one
         final allUserInfos = await getSavedUserInfos(userId);
+
+        // Find the most complete user info
+        UserInfo? mostCompleteUserInfo;
+        for (final userInfo in allUserInfos) {
+          if (userInfo.name != null &&
+              userInfo.age != null &&
+              userInfo.weight != null &&
+              userInfo.feet != null &&
+              userInfo.inches != null &&
+              userInfo.sex != null) {
+            // This is a complete user info, use it
+            mostCompleteUserInfo = userInfo;
+            break;
+          }
+        }
+
+        // If no complete user info is found, use the first one
         final defaultUserInfo =
-            allUserInfos.isNotEmpty ? allUserInfos.first : null;
+            mostCompleteUserInfo ??
+            (allUserInfos.isNotEmpty ? allUserInfos.first : null);
 
         // Cache the result
         if (defaultUserInfo != null) {
-          await _localStorageService.saveUserInfo(userId, defaultUserInfo);
+          try {
+            await _localStorageService.saveUserInfo(userId, defaultUserInfo);
+          } catch (e) {
+            print('FirestoreSyncService: Error caching user info: $e');
+          }
         }
 
         return defaultUserInfo;
@@ -391,10 +436,15 @@ class FirestoreSyncService {
       final userInfo = UserInfo.fromJson(data);
 
       // Cache the result
-      await _localStorageService.saveUserInfo(userId, userInfo);
+      try {
+        await _localStorageService.saveUserInfo(userId, userInfo);
+      } catch (e) {
+        print('FirestoreSyncService: Error caching user info: $e');
+      }
 
       return userInfo;
     } catch (e) {
+      print('FirestoreSyncService: Error getting default user info: $e');
       // Fallback to local storage on error
       return await _localStorageService.getDefaultUserInfo(userId);
     }

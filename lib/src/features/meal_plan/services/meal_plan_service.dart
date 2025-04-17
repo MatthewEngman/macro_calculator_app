@@ -54,9 +54,10 @@ class MealPlanService {
   }
 
   Future<MealPlan> generateMealPlan({
+    required String userId,
     required String diet,
     required String goal,
-    required Map<String, int> macros,
+    required Map<String, double> macros,
     required List<String> ingredients,
   }) async {
     try {
@@ -98,12 +99,16 @@ class MealPlanService {
 
         // Create a MealPlan object from the response
         return MealPlan(
-          diet: diet,
-          goal: goal,
-          macros: macros,
-          ingredients: ingredients,
-          plan: responseData['response'] as String,
-          feedback: '',
+          userId: userId,
+          totalCalories: (responseData['total_calories'] as num?)?.toDouble(),
+          totalProtein: (responseData['total_protein'] as num?)?.toDouble(),
+          totalCarbs: (responseData['total_carbs'] as num?)?.toDouble(),
+          totalFat: (responseData['total_fat'] as num?)?.toDouble(),
+          meals: responseData['meal_details_json'] as String?,
+          notes: responseData['notes'] as String?,
+          createdAt: DateTime.now(), // Set creation time locally
+          // date: Set appropriate date if needed
+          // firebaseUserId: Set if available/needed
         );
       } else {
         throw Exception(

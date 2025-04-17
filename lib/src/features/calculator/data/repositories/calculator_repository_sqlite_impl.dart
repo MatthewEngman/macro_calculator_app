@@ -6,17 +6,34 @@ import 'macro_calculation_db.dart';
 
 class CalculatorRepositorySQLiteImpl {
   final firebase_auth.FirebaseAuth _auth;
+  String? _userId; // Keep track of local User ID (users table PK)
 
   CalculatorRepositorySQLiteImpl(this._auth);
 
   // Helper method to get the current user ID
-  String? get _userId => _auth.currentUser?.uid;
+  String? get userId => _auth.currentUser?.uid;
+
+  Future<void> _initializeUserId() async {
+    // TODO: Initialize _userId, possibly by querying LocalStorageService for the corresponding local ID.
+  }
 
   Future<List<MacroResult>> getSavedMacros() async {
-    return await MacroCalculationDB.getAllCalculations(firebaseUserId: _userId);
+    // TODO: Ensure _userId is initialized before calling
+    if (_userId == null) {
+      await _initializeUserId(); // Attempt re-initialization
+      if (_userId == null) return []; // Return empty if still null
+    }
+    return await MacroCalculationDB.getAllCalculations(
+      userId: _userId!, // Use localUserId
+    );
   }
 
   Future<void> saveMacro(MacroResult result) async {
+    // TODO: Ensure _userId is initialized before calling
+    if (_userId == null) {
+      await _initializeUserId();
+      if (_userId == null) throw Exception('User not initialized');
+    }
     final id = result.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     final newResult = result.copyWith(id: id);
 
@@ -27,13 +44,13 @@ class CalculatorRepositorySQLiteImpl {
       // Update existing result
       await MacroCalculationDB.insertCalculation(
         newResult,
-        firebaseUserId: _userId,
+        userId: _userId!, // Use localUserId
       );
     } else {
       // Add new result
       await MacroCalculationDB.insertCalculation(
         newResult,
-        firebaseUserId: _userId,
+        userId: _userId!, // Use localUserId
       );
 
       // If this result is set as default, update all others to not be default
@@ -59,12 +76,25 @@ class CalculatorRepositorySQLiteImpl {
   }
 
   Future<void> setDefaultMacro(String id) async {
-    await MacroCalculationDB.setDefaultCalculation(id, firebaseUserId: _userId);
+    // TODO: Ensure _userId is initialized before calling
+    if (_userId == null) {
+      await _initializeUserId();
+      if (_userId == null) throw Exception('User not initialized');
+    }
+    await MacroCalculationDB.setDefaultCalculation(
+      id,
+      userId: _userId!, // Use localUserId
+    );
   }
 
   Future<MacroResult?> getDefaultMacro() async {
+    // TODO: Ensure _userId is initialized before calling
+    if (_userId == null) {
+      await _initializeUserId();
+      if (_userId == null) return null;
+    }
     return await MacroCalculationDB.getDefaultCalculation(
-      firebaseUserId: _userId,
+      userId: _userId!, // Use localUserId
     );
   }
 

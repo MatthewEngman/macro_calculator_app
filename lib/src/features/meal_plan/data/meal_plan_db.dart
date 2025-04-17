@@ -5,128 +5,168 @@ import '../models/meal_plan.dart';
 class MealPlanDB {
   static const String tableName = 'meal_plans';
 
-  static Future<void> createTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $tableName (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        diet TEXT NOT NULL,
-        goal TEXT NOT NULL,
-        macros TEXT NOT NULL,
-        ingredients TEXT NOT NULL,
-        plan TEXT NOT NULL,
-        feedback TEXT NOT NULL DEFAULT '',
-        timestamp TEXT NOT NULL,
-        last_modified INTEGER
-      )
-    ''');
+  static Database? _db;
+
+  static void setDatabase(Database db) {
+    _db = db;
+    print('MealPlanDB: Database instance set manually');
   }
 
-  static Future<int> insertMealPlan(MealPlan plan) async {
-    final db = await DatabaseHelper.instance.database;
+  static const String columnId = 'id';
+  static const String columnUserId = 'user_id';
+  static const String columnDate = 'date';
+  static const String columnMeals = 'meals';
+  static const String columnTotalCalories = 'total_calories';
+  static const String columnTotalProtein = 'total_protein';
+  static const String columnTotalCarbs = 'total_carbs';
+  static const String columnTotalFat = 'total_fat';
+  static const String columnNotes = 'notes';
+  static const String columnFirebaseUserId = 'firebase_user_id';
+  static const String columnCreatedAt = 'created_at';
+  static const String columnUpdatedAt = 'updated_at';
+  static const String columnLastModified = 'last_modified';
+
+  static Future<void> createTable(Database db) async {
+    await db.execute('''
+          CREATE TABLE $tableName (
+            $columnId TEXT PRIMARY KEY, 
+            $columnUserId TEXT NOT NULL, 
+            $columnDate TEXT, 
+            $columnMeals TEXT, 
+            $columnTotalCalories REAL, 
+            $columnTotalProtein REAL, 
+            $columnTotalCarbs REAL, 
+            $columnTotalFat REAL, 
+            $columnNotes TEXT, 
+            $columnFirebaseUserId TEXT, 
+            $columnCreatedAt INTEGER, 
+            $columnUpdatedAt INTEGER, 
+            $columnLastModified INTEGER
+          )
+          ''');
+    print('MealPlanDB: Created $tableName table');
+  }
+
+  static Future<String> insertMealPlan(MealPlan plan, String userId) async {
+    final db = _db ?? await DatabaseHelper.instance.database;
+    final now = DateTime.now().millisecondsSinceEpoch;
 
     final mealPlanMap = plan.toMap();
-    // Add last_modified timestamp if not present
-    if (!mealPlanMap.containsKey('last_modified')) {
-      mealPlanMap['last_modified'] = DateTime.now().millisecondsSinceEpoch;
-    }
 
-    return await db.insert(tableName, mealPlanMap);
+    mealPlanMap[columnId] = plan.id;
+    mealPlanMap[columnUserId] = userId;
+    mealPlanMap[columnCreatedAt] = now;
+    mealPlanMap[columnUpdatedAt] = now;
+    mealPlanMap[columnLastModified] = now;
+    mealPlanMap.remove('timestamp');
+    mealPlanMap.remove('feedback');
+
+    await db.insert(
+      tableName,
+      mealPlanMap,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    print('MealPlanDB: Inserted meal plan ${plan.id} for user $userId');
+    // Assert that plan.id is not null, as the method must return a non-null String.
+    // This implies that the ID must be generated before calling insertMealPlan.
+    return plan.id!;
   }
 
   static Future<bool> updateMealPlan(MealPlan plan) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = _db ?? await DatabaseHelper.instance.database;
 
     if (plan.id == null) {
       throw ArgumentError('Cannot update a meal plan without an ID');
     }
 
-    // First check if the record exists and get its current lastModified value
-    final existingPlan = await getMealPlan(plan.id!);
+    // Assert non-null when passing plan.id to getMealPlanById
+    final existingPlan = await getMealPlanById(plan.id!);
     if (existingPlan == null) {
-      // Plan doesn't exist, insert it instead
-      await insertMealPlan(plan);
-      return true;
+      print('MealPlanDB: Meal plan ${plan.id} not found for update.');
+      return false;
     }
 
-    // If the existing record has a newer lastModified timestamp, don't update
-    final existingLastModified = existingPlan.lastModified ?? DateTime(1970);
-    final newLastModified = plan.lastModified ?? DateTime.now();
+    final existingLastModified =
+        existingPlan.lastModified?.millisecondsSinceEpoch ?? 0;
+    final newLastModified = DateTime.now().millisecondsSinceEpoch;
 
-    if (existingLastModified.isAfter(newLastModified)) {
-      // Existing record is newer, don't update
+    if (existingLastModified > newLastModified) {
+      print(
+        'MealPlanDB: Existing meal plan ${plan.id} is newer. Skipping update.',
+      );
       return false;
     }
 
     final mealPlanMap = plan.toMap();
-    // Update the last_modified timestamp
-    mealPlanMap['last_modified'] = DateTime.now().millisecondsSinceEpoch;
+
+    mealPlanMap[columnUpdatedAt] = newLastModified;
+    mealPlanMap[columnLastModified] = newLastModified;
+    mealPlanMap.remove(columnId);
+    mealPlanMap.remove(columnUserId);
+    mealPlanMap.remove(columnCreatedAt);
+    mealPlanMap.remove('timestamp');
+    mealPlanMap.remove('feedback');
 
     final rowsAffected = await db.update(
       tableName,
       mealPlanMap,
-      where: 'id = ?',
+      where: '$columnId = ?',
       whereArgs: [plan.id],
     );
-
+    print(
+      'MealPlanDB: Updated meal plan ${plan.id}. Rows affected: $rowsAffected',
+    );
     return rowsAffected > 0;
   }
 
-  static Future<List<MealPlan>> getAllPlans() async {
-    final db = await DatabaseHelper.instance.database;
+  static Future<List<MealPlan>> getAllPlansForUser(String userId) async {
+    final db = _db ?? await DatabaseHelper.instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       tableName,
-      orderBy: 'timestamp DESC',
+      where: '$columnUserId = ?',
+      whereArgs: [userId],
+      orderBy: '$columnCreatedAt DESC',
     );
 
+    if (maps.isEmpty) return [];
+
     return List.generate(maps.length, (i) {
-      final map = maps[i];
-      // Convert last_modified to DateTime if it exists
-      if (map.containsKey('last_modified') && map['last_modified'] != null) {
-        map['lastModified'] = DateTime.fromMillisecondsSinceEpoch(
-          map['last_modified'],
-        );
-      }
-      return MealPlan.fromMap(map);
+      return MealPlan.fromMap(maps[i]);
     });
   }
 
-  static Future<MealPlan?> getMealPlan(int id) async {
-    final db = await DatabaseHelper.instance.database;
+  /// Gets ALL meal plans from the database (used for syncing)
+  static Future<List<MealPlan>> getAllPlans() async {
+    final db = _db ?? await DatabaseHelper.instance.database;
     final List<Map<String, dynamic>> maps = await db.query(
       tableName,
-      where: 'id = ?',
+      orderBy: '$columnCreatedAt DESC',
+    );
+
+    if (maps.isEmpty) return [];
+
+    return List.generate(maps.length, (i) {
+      return MealPlan.fromMap(maps[i]);
+    });
+  }
+
+  static Future<MealPlan?> getMealPlanById(String id) async {
+    final db = _db ?? await DatabaseHelper.instance.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableName,
+      where: '$columnId = ?',
       whereArgs: [id],
       limit: 1,
     );
 
     if (maps.isEmpty) return null;
 
-    final map = maps.first;
-    // Convert last_modified to DateTime if it exists
-    if (map.containsKey('last_modified') && map['last_modified'] != null) {
-      map['lastModified'] = DateTime.fromMillisecondsSinceEpoch(
-        map['last_modified'],
-      );
-    }
-
-    return MealPlan.fromMap(map);
+    return MealPlan.fromMap(maps.first);
   }
 
-  static Future<int> updateFeedback(int id, String feedback) async {
-    final db = await DatabaseHelper.instance.database;
-    return await db.update(
-      tableName,
-      {
-        'feedback': feedback,
-        'last_modified': DateTime.now().millisecondsSinceEpoch,
-      },
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  static Future<int> deleteMealPlan(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
+  static Future<int> deleteMealPlan(String id) async {
+    final db = _db ?? await DatabaseHelper.instance.database;
+    print('MealPlanDB: Deleting meal plan $id');
+    return await db.delete(tableName, where: '$columnId = ?', whereArgs: [id]);
   }
 }

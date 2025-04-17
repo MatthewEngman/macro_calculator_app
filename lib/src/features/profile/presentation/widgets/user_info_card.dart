@@ -222,14 +222,18 @@ class UserInfoCard extends ConsumerWidget {
                       )
                     else
                       OutlinedButton.icon(
-                        onPressed: () {
+                        onPressed: () async {
                           if (userInfo.id != null) {
                             final auth = ref.read(firebaseAuthProvider);
                             final userId = auth.currentUser?.uid;
                             if (userId != null) {
-                              ref
-                                  .read(userInfoProvider.notifier)
-                                  .setDefaultUserInfo(userId, userInfo.id!);
+                              final syncService = ref.read(
+                                firestoreSyncServiceProvider,
+                              );
+                              await syncService.setDefaultUserInfo(
+                                userId,
+                                userInfo.id!,
+                              );
                               Navigator.of(context).pop();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
@@ -492,7 +496,7 @@ class UserInfoCard extends ConsumerWidget {
                 ),
               ),
               FilledButton(
-                onPressed: () {
+                onPressed: () async {
                   // Update user info with edited values
                   final updatedUserInfo = userInfo.copyWith(
                     weight: double.tryParse(weightController.text),
@@ -517,13 +521,10 @@ class UserInfoCard extends ConsumerWidget {
 
                   if (userId != null) {
                     // Save updated user info
-                    ref
-                        .read(userInfoProvider.notifier)
-                        .saveUserInfo(userId, updatedUserInfo);
-
+                    final syncService = ref.read(firestoreSyncServiceProvider);
+                    await syncService.saveUserInfo(userId, updatedUserInfo);
                     // Close dialog
                     Navigator.of(context).pop();
-
                     // Show success message
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(

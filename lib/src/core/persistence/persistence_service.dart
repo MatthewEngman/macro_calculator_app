@@ -12,24 +12,28 @@ class PersistenceService {
     if (_initialized) return;
 
     try {
-      // Check if settings table exists
+      print('PersistenceService: Checking if settings table exists...');
       final tables = await database.rawQuery(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='${DatabaseHelper.tableSettings}'",
       );
+      print('PersistenceService: Table query result: $tables');
 
       if (tables.isEmpty) {
-        // Create settings table if it doesn't exist
+        print('PersistenceService: Creating settings table...');
         await database.execute('''
-          CREATE TABLE ${DatabaseHelper.tableSettings} (
-            ${DatabaseHelper.columnKey} TEXT PRIMARY KEY,
-            ${DatabaseHelper.columnValue} TEXT NOT NULL
-          )
-        ''');
+        CREATE TABLE ${DatabaseHelper.tableSettings} (
+          ${DatabaseHelper.columnKey} TEXT PRIMARY KEY,
+          ${DatabaseHelper.columnValue} TEXT NOT NULL
+        )
+      ''');
+        print('PersistenceService: Settings table created.');
       }
 
       _initialized = true;
-    } catch (e) {
+      print('PersistenceService: Initialization complete.');
+    } catch (e, stack) {
       print('Error initializing PersistenceService: $e');
+      print('Stack trace: $stack');
       throw UnimplementedError('Initialize in main.dart');
     }
   }

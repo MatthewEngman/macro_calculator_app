@@ -75,15 +75,15 @@ class UserInfoTab extends ConsumerWidget {
                       userInfo.isDefault
                           ? DismissDirection.none
                           : DismissDirection.endToStart,
-                  onDismissed: (direction) {
+                  onDismissed: (direction) async {
                     if (userInfo.id != null && !userInfo.isDefault) {
                       final authInstance = ref.read(firebaseAuthProvider);
                       final userId = authInstance.currentUser?.uid;
-
                       if (userId != null) {
-                        ref
-                            .read(userInfoProvider.notifier)
-                            .deleteUserInfo(userId, userInfo.id!);
+                        final syncService = ref.read(
+                          firestoreSyncServiceProvider,
+                        );
+                        await syncService.deleteUserInfo(userId, userInfo.id!);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -330,7 +330,7 @@ class UserInfoTab extends ConsumerWidget {
                 ),
               ),
               FilledButton(
-                onPressed: () {
+                onPressed: () async {
                   // Create new user info
                   final userInfo = UserInfo(
                     weight: double.tryParse(weightController.text),
@@ -355,9 +355,8 @@ class UserInfoTab extends ConsumerWidget {
 
                   if (userId != null) {
                     // Save user info
-                    ref
-                        .read(userInfoProvider.notifier)
-                        .saveUserInfo(userId, userInfo);
+                    final syncService = ref.read(firestoreSyncServiceProvider);
+                    await syncService.saveUserInfo(userId, userInfo);
 
                     // Close dialog
                     Navigator.of(context).pop();

@@ -1,11 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart';
+import 'package:macro_masher/src/core/persistence/shared_preferences_provider.dart';
 import 'package:macro_masher/src/core/routing/app_router.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../../profile/domain/entities/user_info.dart' as app;
-import '../../../profile/presentation/providers/user_info_provider.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
 
 final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
@@ -49,8 +50,8 @@ final authStateListenerProvider = Provider<void>((ref) {
         }
 
         // Otherwise, check if they have a profile and create one if needed
-        final userInfoNotifier = ref.read(userInfoProvider.notifier);
-        userInfoNotifier.loadSavedUserInfos().then((userInfos) {
+        final syncService = ref.read(firestoreSyncServiceProvider);
+        syncService.getSavedUserInfos(user.uid).then((userInfos) async {
           if (userInfos.isEmpty) {
             // Create a default profile for the new user
             final defaultProfile = app.UserInfo(
@@ -63,7 +64,7 @@ final authStateListenerProvider = Provider<void>((ref) {
               goal: Goal.maintain,
               units: Units.imperial,
             );
-            userInfoNotifier.saveUserInfo(user.uid, defaultProfile);
+            await syncService.saveUserInfo(user.uid, defaultProfile);
           }
         });
       } else if (user != null && user.isAnonymous) {

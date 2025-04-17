@@ -148,8 +148,17 @@ class DataSyncManager {
     try {
       _updateSyncStatus(SyncStatus.syncing);
 
+      final localUser = await UserDB.getUserByFirebaseId(_requiredUserId);
+      if (localUser == null || localUser.id == null) {
+        print(
+          'DataSyncManager: Cannot sync macro calculations. Local user not found for firebase ID $_requiredUserId',
+        );
+        return;
+      }
+      final localUserId = localUser.id!;
+
       final localCalculations = await MacroCalculationDB.getAllCalculations(
-        firebaseUserId: _userId,
+        userId: localUserId,
       );
 
       final remoteCalculationsSnapshot =
@@ -248,7 +257,7 @@ class DataSyncManager {
         if (localCalc.id == null) {
           await MacroCalculationDB.insertCalculation(
             remoteCalc,
-            firebaseUserId: _userId,
+            userId: localUserId,
           );
         } else {
           final localTimestamp = localCalc.lastModified ?? DateTime(1970);
@@ -257,7 +266,7 @@ class DataSyncManager {
           if (remoteTimestamp.isAfter(localTimestamp)) {
             await MacroCalculationDB.updateCalculation(
               remoteCalc,
-              firebaseUserId: _userId,
+              userId: localUserId,
             );
           }
         }
@@ -279,6 +288,16 @@ class DataSyncManager {
 
     try {
       _updateSyncStatus(SyncStatus.syncing);
+
+      final localUser = await UserDB.getUserByFirebaseId(_requiredUserId);
+      if (localUser == null || localUser.id == null) {
+        print(
+          'DataSyncManager: Cannot sync meal plans. Local user not found for firebase ID $_requiredUserId',
+        );
+        _updateSyncStatus(SyncStatus.error); // Or appropriate status
+        return;
+      }
+      final localUserId = localUser.id!;
 
       final localMealPlans = await MealPlanDB.getAllPlans();
 
@@ -340,18 +359,11 @@ class DataSyncManager {
         if (planId != null) {
           final localPlan = localMealPlans.firstWhere(
             (plan) => plan.id == planId,
-            orElse:
-                () => MealPlan(
-                  diet: '',
-                  goal: '',
-                  macros: {},
-                  ingredients: [],
-                  plan: '',
-                ),
+            orElse: () => MealPlan(userId: localUserId),
           );
 
           if (localPlan.id == null) {
-            await MealPlanDB.insertMealPlan(remotePlan);
+            await MealPlanDB.insertMealPlan(remotePlan, localUserId);
           } else {
             final localTimestamp = localPlan.lastModified ?? DateTime(1970);
             final remoteTimestamp = remotePlan.lastModified ?? DateTime(1970);

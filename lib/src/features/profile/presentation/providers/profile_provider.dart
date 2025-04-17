@@ -1,6 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/profile_repository_hybrid_impl.dart';
 import '../../domain/repositories/profile_repository.dart';
 import '../../../calculator/domain/entities/macro_result.dart';
+import '../../../../core/persistence/onboarding_provider.dart';
+
+final macroListProvider = FutureProvider<List<MacroResult>>((ref) async {
+  final onboardingComplete = ref.watch(onboardingCompleteProvider);
+  if (!onboardingComplete) return [];
+  final repository = ref.watch(profileRepositoryProvider);
+  return await repository.getSavedMacros();
+});
+
+final defaultMacroProvider = FutureProvider<MacroResult?>((ref) async {
+  final onboardingComplete = ref.watch(onboardingCompleteProvider);
+  if (!onboardingComplete) return null;
+  final repository = ref.watch(profileRepositoryProvider);
+  return await repository.getDefaultMacro();
+});
 
 final profileProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<List<MacroResult>>>((
@@ -10,16 +27,8 @@ final profileProvider =
     });
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  throw UnimplementedError('Implement in main.dart');
-});
-
-// Provider for accessing the default macro
-final defaultMacroProvider = FutureProvider<MacroResult?>((ref) async {
-  // Watch the profile provider to automatically refresh when macros change
-  ref.watch(profileProvider);
-
-  final repository = ref.watch(profileRepositoryProvider);
-  return await repository.getDefaultMacro();
+  final syncService = ref.watch(firestoreSyncServiceProvider);
+  return ProfileRepositoryHybridImpl(syncService);
 });
 
 class ProfileNotifier extends StateNotifier<AsyncValue<List<MacroResult>>> {

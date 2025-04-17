@@ -89,6 +89,20 @@ class DashboardScreen extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
+    // Add debug information to verify user profile data
+    print('UserInfo Debug:');
+    print('ID: ${userInfo.id}');
+    print('Name: ${userInfo.name}');
+    print('Age: ${userInfo.age}');
+    print('Sex: ${userInfo.sex}');
+    print('Weight: ${userInfo.weight}');
+    print('Height: ${userInfo.feet}\'${userInfo.inches}"');
+    print('Units: ${userInfo.units}');
+    print('Activity Level: ${userInfo.activityLevel}');
+    print('Goal: ${userInfo.goal}');
+    print('Is Default: ${userInfo.isDefault}');
+    print('Last Modified: ${userInfo.lastModified}');
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -186,52 +200,79 @@ class DashboardScreen extends ConsumerWidget {
     BuildContext context,
     AsyncValue<MacroResult?> defaultMacroAsync,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Text(
-                'Macro Calculation',
-                style: Theme.of(context).textTheme.titleLarge,
-                textAlign: TextAlign.center,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Your Macro Calculation', style: textTheme.titleLarge),
+                Icon(Icons.calculate, color: colorScheme.primary),
+              ],
             ),
             const SizedBox(height: 16),
             defaultMacroAsync.when(
               data: (macroResult) {
                 if (macroResult == null) {
-                  return Text(
-                    'No macro calculation found. Complete the calculator to set one.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
+                  return const Center(
+                    child: Text(
+                      'No default macro calculation found.\nCreate one in the calculator.',
+                      textAlign: TextAlign.center,
+                    ),
                   );
                 }
+
+                // Add debug information to verify macro calculation
+                print('MacroResult Debug:');
+                print('ID: ${macroResult.id}');
+                print('Name: ${macroResult.name}');
+                print('Calories: ${macroResult.calories}');
+                print('Protein: ${macroResult.protein}');
+                print('Carbs: ${macroResult.carbs}');
+                print('Fat: ${macroResult.fat}');
+                print('Calculation Type: ${macroResult.calculationType}');
+                print('Is Default: ${macroResult.isDefault}');
+                print('Last Modified: ${macroResult.lastModified}');
+                if (macroResult.sourceProfile != null) {
+                  print('Source Profile ID: ${macroResult.sourceProfile?.id}');
+                  print(
+                    'Source Profile Units: ${macroResult.sourceProfile?.units}',
+                  );
+                }
+
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildMacroRow(
                       context,
                       'Calories',
-                      macroResult.calories.round().toString(),
+                      '${macroResult.calories.round()} kcal',
                     ),
+                    const SizedBox(height: 8),
                     _buildMacroRow(
                       context,
                       'Protein',
-                      macroResult.protein.round().toString(),
+                      '${macroResult.protein.round()} g',
                     ),
+                    const SizedBox(height: 8),
                     _buildMacroRow(
                       context,
                       'Carbohydrates',
-                      macroResult.carbs.round().toString(),
+                      '${macroResult.carbs.round()} g',
                     ),
+                    const SizedBox(height: 8),
                     _buildMacroRow(
                       context,
                       'Fat',
-                      macroResult.fat.round().toString(),
+                      '${macroResult.fat.round()} g',
                     ),
                   ],
                 );

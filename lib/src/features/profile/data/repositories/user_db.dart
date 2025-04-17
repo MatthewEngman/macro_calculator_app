@@ -6,6 +6,15 @@ import 'package:macro_masher/src/features/profile/domain/entities/user_info.dart
 class UserDB {
   static const String tableName = 'users';
 
+  // Add a static database field
+  static Database? _db;
+
+  // Method to set the database instance directly
+  static void setDatabase(Database db) {
+    _db = db;
+    print('UserDB: Database instance set manually');
+  }
+
   /// Creates the users table in the database
   static Future<void> createTable(Database db) async {
     await db.execute('''
@@ -24,14 +33,20 @@ class UserDB {
         is_default INTEGER NOT NULL DEFAULT 0,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        last_modified INTEGER
+        last_modified INTEGER,
+        weight_change_rate REAL DEFAULT 1.0
       )
     ''');
   }
 
   /// Inserts a new user into the database
   static Future<String> insertUser(UserInfo user, String firebaseUserId) async {
-    final db = await DatabaseHelper.instance.database;
+    // Use the manually set database if available, otherwise fall back to DatabaseHelper
+    final db = _db ?? await DatabaseHelper.instance.database;
+
+    print(
+      'Database HashCode in UserDB (insertUser): ${db.hashCode}',
+    ); // Log hash code here
 
     final id = user.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     final lastModified =
@@ -46,13 +61,18 @@ class UserDB {
     userData['last_modified'] = lastModified;
     userData['is_default'] = user.isDefault ? 1 : 0;
 
-    await db.insert(
-      tableName,
-      userData,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-
-    return id;
+    try {
+      await db.insert(
+        tableName,
+        userData,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      print('UserDB: Successfully inserted user with ID: $id');
+      return id;
+    } catch (e) {
+      print('UserDB: Error inserting user: $e');
+      rethrow;
+    }
   }
 
   /// Updates an existing user in the database with timestamp-based conflict resolution
@@ -60,7 +80,10 @@ class UserDB {
     final db = await DatabaseHelper.instance.database;
 
     if (user.id == null) {
-      throw ArgumentError('Cannot update a user without an ID');
+      // Instead of throwing an error, insert a new user with a generated ID
+      print('UserDB: Cannot update a user without an ID, inserting instead');
+      await insertUser(user, firebaseUserId);
+      return true;
     }
 
     // First check if the record exists and get its current lastModified value
@@ -71,8 +94,9 @@ class UserDB {
       return true;
     }
 
-    // If the existing record has a newer lastModified timestamp, don't update
-    final existingLastModified = existingUser.lastModified ?? DateTime(1970);
+    // Implement timestamp-based conflict resolution
+    final existingLastModified =
+        existingUser.lastModified ?? DateTime.fromMillisecondsSinceEpoch(0);
     final newLastModified = user.lastModified ?? DateTime.now();
 
     if (existingLastModified.isAfter(newLastModified)) {
@@ -86,14 +110,25 @@ class UserDB {
     userData['last_modified'] = DateTime.now().millisecondsSinceEpoch;
     userData['is_default'] = user.isDefault ? 1 : 0;
 
-    final rowsAffected = await db.update(
-      tableName,
-      userData,
-      where: 'id = ?',
-      whereArgs: [user.id],
-    );
-
-    return rowsAffected > 0;
+    try {
+      final rowsAffected = await db.update(
+        tableName,
+        userData,
+        where: 'id = ?',
+        whereArgs: [user.id],
+      );
+      return rowsAffected > 0;
+    } catch (e) {
+      print('UserDB: Error updating user: $e');
+      // If update fails, try insert as a fallback
+      try {
+        await insertUser(user, firebaseUserId);
+        return true;
+      } catch (insertError) {
+        print('UserDB: Error inserting user as fallback: $insertError');
+        return false;
+      }
+    }
   }
 
   /// Deletes a user from the database
@@ -111,6 +146,32 @@ class UserDB {
       tableName,
       where: 'id = ?',
       whereArgs: [id],
+    );
+
+    if (maps.isEmpty) {
+      return null;
+    }
+
+    final userData = maps.first;
+    userData['isDefault'] = userData['is_default'] == 1;
+
+    if (userData['last_modified'] != null) {
+      userData['lastModified'] = DateTime.fromMillisecondsSinceEpoch(
+        userData['last_modified'],
+      );
+    }
+
+    return UserInfo.fromJson(userData);
+  }
+
+  /// Gets a user by Firebase user ID (assuming one primary profile per Firebase ID for sync)
+  static Future<UserInfo?> getUserByFirebaseId(String firebaseUserId) async {
+    final db = _db ?? await DatabaseHelper.instance.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableName,
+      where: 'firebase_user_id = ?',
+      whereArgs: [firebaseUserId],
+      limit: 1, // Expecting one primary local profile linked for sync
     );
 
     if (maps.isEmpty) {

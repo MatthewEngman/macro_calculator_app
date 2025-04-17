@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart';
 import '../../services/meal_plan_service.dart';
-import '../../data/meal_plan_db.dart';
+import '../../data/repositories/meal_plan_repository_sqlite_impl.dart';
 import '../../../../features/profile/presentation/providers/profile_provider.dart';
 
 class MealPlanGeneratorScreen extends ConsumerStatefulWidget {
@@ -138,28 +139,88 @@ class _MealPlanGeneratorScreenState
   Future<void> _generateMealPlan() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Retrieve the current user profile state using the correct provider name
+    // Note: The state type is AsyncValue<List<MacroResult>>, not UserInfo
+    final userProfileState = ref.read(profileProvider);
+    final localUserId = userProfileState.maybeWhen(
+      data: (profile) => profile?.first.id, // Corrected this line
+      orElse: () => null,
+    );
+
+    if (localUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Error: Could not get user ID. Please ensure you are logged in.',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      final mealPlan = await _mealPlanService.generateMealPlan(
+      // Use the service to get the meal plan object (from API or logic)
+      final mealPlanFromService = await _mealPlanService.generateMealPlan(
+        userId: localUserId, // Pass the userId
         diet: _selectedDiet,
         goal: _selectedGoal,
         macros: {
-          'calories': int.parse(_caloriesController.text),
-          'protein': int.parse(_proteinController.text),
-          'carbs': int.parse(_carbsController.text),
-          'fat': int.parse(_fatController.text),
+          'calories': double.parse(_caloriesController.text), // Parse as double
+          'protein': double.parse(_proteinController.text), // Parse as double
+          'carbs': double.parse(_carbsController.text), // Parse as double
+          'fat': double.parse(_fatController.text), // Parse as double
         },
         ingredients: _ingredients,
       );
 
-      // Save to database
-      await MealPlanDB.insertMealPlan(mealPlan);
+      // Add the necessary userId and potentially firebaseUserId before saving
+      final firebaseUserId = ref.read(firebaseAuthProvider).currentUser?.uid;
+
+      // Use the meal plan returned directly from the service
+      final mealPlanToSave = mealPlanFromService.copyWith(
+        // We might still need to add firebaseUserId if it's not handled by the service
+        // or if we want it distinct from the local userId used for generation/local storage.
+        firebaseUserId: firebaseUserId,
+        // Ensure date is set correctly if needed for the plan itself
+        date: DateTime.now().toIso8601String().substring(
+          0,
+          10,
+        ), // Example: Set date to today
+        // updatedAt/lastModified might be set by the DB or service later
+      );
+
+      // Get the repository using the correct provider by awaiting its future
+      final mealPlanRepository = await ref.read(
+        mealPlanRepositorySQLiteProvider.future,
+      );
+      final savedPlanId = await mealPlanRepository.saveMealPlan(mealPlanToSave);
 
       if (!mounted) return;
 
-      // Navigate to results screen
-      context.go('/meal-plans/result', extra: mealPlan);
+      if (savedPlanId != null) {
+        // Fetch the saved plan to pass to the results screen (optional, could pass mealPlanToSave)
+        final savedPlan = await mealPlanRepository.getMealPlanById(savedPlanId);
+        if (savedPlan != null && mounted) {
+          // Navigate to results screen
+          context.go('/meal-plans/result', extra: savedPlan);
+        } else if (mounted) {
+          // Handle case where saved plan couldn't be re-fetched (shouldn't happen often)
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Meal plan generated but could not navigate to results.',
+              ),
+            ),
+          );
+        }
+      } else {
+        // Handle case where saving failed
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error saving generated meal plan.')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

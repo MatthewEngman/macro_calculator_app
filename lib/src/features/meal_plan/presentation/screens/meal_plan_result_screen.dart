@@ -1,39 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart';
+import '../../../../core/persistence/repository_providers.dart';
 import '../../models/meal_plan.dart';
 import '../../data/meal_plan_db.dart';
+import 'dart:convert';
 
-class MealPlanResultScreen extends StatelessWidget {
+class MealPlanResultScreen extends ConsumerWidget {
   final MealPlan mealPlan;
 
   const MealPlanResultScreen({super.key, required this.mealPlan});
 
-  Future<void> _updateFeedback(BuildContext context, String feedback) async {
+  Widget _buildMealsSection(BuildContext context) {
+    if (mealPlan.meals == null || mealPlan.meals!.isEmpty) {
+      return const Text('No meal details available.');
+    }
     try {
-      // Update the meal plan with feedback
-      if (mealPlan.id == null) {
-        throw Exception('Cannot update feedback: meal plan has no ID');
-      }
-      await MealPlanDB.updateFeedback(mealPlan.id!, feedback);
+      final List<dynamic> mealsList = jsonDecode(mealPlan.meals!);
 
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Feedback saved'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children:
+            mealsList.map((meal) {
+              final mealName = meal['name'] ?? 'Unnamed Meal';
+              final mealDetails = meal.toString();
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Text('$mealName: $mealDetails'),
+              );
+            }).toList(),
       );
     } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error saving feedback: $e')));
+      print('Error decoding meals JSON: $e');
+      return Text('Meal Details (raw):\n${mealPlan.meals}');
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
@@ -48,7 +53,6 @@ class MealPlanResultScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Diet and Goal
             Card(
               elevation: 0,
               margin: const EdgeInsets.all(16),
@@ -58,15 +62,15 @@ class MealPlanResultScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Text(
+                    //   '${mealPlan.diet.toUpperCase()} Diet for ${mealPlan.goal}',
+                    //   style: textTheme.titleMedium?.copyWith(
+                    //     color: colorScheme.onSecondaryContainer,
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 8),
                     Text(
-                      '${mealPlan.diet.toUpperCase()} Diet for ${mealPlan.goal}',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Created on ${mealPlan.timestamp.toString().split('.')[0]}',
+                      'Created on: ${mealPlan.createdAt?.toString().split(' ')[0] ?? 'N/A'}',
                       style: textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSecondaryContainer,
                       ),
@@ -77,7 +81,6 @@ class MealPlanResultScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Macro Summary Card
             Card(
               elevation: 0,
               margin: EdgeInsets.zero,
@@ -99,7 +102,7 @@ class MealPlanResultScreen extends StatelessWidget {
                         Expanded(
                           child: _MacroWidget(
                             label: 'Calories',
-                            value: mealPlan.macros['calories']!,
+                            value: mealPlan.totalCalories ?? 0.0,
                             unit: 'kcal',
                             color: colorScheme.primaryContainer,
                             textColor: colorScheme.onPrimaryContainer,
@@ -109,7 +112,7 @@ class MealPlanResultScreen extends StatelessWidget {
                         Expanded(
                           child: _MacroWidget(
                             label: 'Protein',
-                            value: mealPlan.macros['protein']!,
+                            value: mealPlan.totalProtein ?? 0.0,
                             unit: 'g',
                             color: colorScheme.primaryContainer,
                             textColor: colorScheme.onPrimaryContainer,
@@ -119,7 +122,7 @@ class MealPlanResultScreen extends StatelessWidget {
                         Expanded(
                           child: _MacroWidget(
                             label: 'Carbs',
-                            value: mealPlan.macros['carbs']!,
+                            value: mealPlan.totalCarbs ?? 0.0,
                             unit: 'g',
                             color: colorScheme.primaryContainer,
                             textColor: colorScheme.onPrimaryContainer,
@@ -129,7 +132,7 @@ class MealPlanResultScreen extends StatelessWidget {
                         Expanded(
                           child: _MacroWidget(
                             label: 'Fat',
-                            value: mealPlan.macros['fat']!,
+                            value: mealPlan.totalFat ?? 0.0,
                             unit: 'g',
                             color: colorScheme.primaryContainer,
                             textColor: colorScheme.onPrimaryContainer,
@@ -143,7 +146,6 @@ class MealPlanResultScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
 
-            // Ingredients
             Card(
               elevation: 0,
               margin: const EdgeInsets.all(16),
@@ -154,100 +156,50 @@ class MealPlanResultScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ingredients',
+                      'Meal Totals',
                       style: textTheme.titleMedium?.copyWith(
                         color: colorScheme.onSecondaryContainer,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8.0,
-                      runSpacing: 4.0,
-                      children:
-                          mealPlan.ingredients
-                              .map(
-                                (ingredient) => Chip(label: Text(ingredient)),
-                              )
-                              .toList(),
+                    _buildMacroRow(
+                      context,
+                      'Total Calories:',
+                      '${mealPlan.totalCalories?.toStringAsFixed(0) ?? 'N/A'} kcal',
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Meal Plan Card
-            Card(
-              elevation: 0,
-              margin: const EdgeInsets.all(16),
-              color: colorScheme.secondaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your Meal Plan',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
-                      ),
+                    _buildMacroRow(
+                      context,
+                      'Total Protein:',
+                      '${mealPlan.totalProtein?.toStringAsFixed(1) ?? 'N/A'} g',
+                    ),
+                    _buildMacroRow(
+                      context,
+                      'Total Carbs:',
+                      '${mealPlan.totalCarbs?.toStringAsFixed(1) ?? 'N/A'} g',
+                    ),
+                    _buildMacroRow(
+                      context,
+                      'Total Fat:',
+                      '${mealPlan.totalFat?.toStringAsFixed(1) ?? 'N/A'} g',
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      mealPlan.plan,
-                      style: textTheme.bodyLarge?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Feedback Card
-            Card(
-              elevation: 0,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: colorScheme.secondaryContainer,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'How\'s this meal plan?',
+                      'Meals:',
                       style: textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onSecondaryContainer,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    _buildMealsSection(context),
+
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _FeedbackButton(
-                          icon: Icons.thumb_up,
-                          label: 'Like',
-                          color: colorScheme.secondaryContainer,
-                          textColor: colorScheme.onSecondaryContainer,
-                          onPressed: () => _updateFeedback(context, 'liked'),
-                        ),
-                        _FeedbackButton(
-                          icon: Icons.thumb_down,
-                          label: 'Dislike',
-                          color: colorScheme.secondaryContainer,
-                          textColor: colorScheme.onSecondaryContainer,
-                          onPressed: () => _updateFeedback(context, 'disliked'),
-                        ),
-                        _FeedbackButton(
-                          icon: Icons.refresh,
-                          label: 'Regenerate',
-                          color: colorScheme.secondaryContainer,
-                          textColor: colorScheme.onSecondaryContainer,
-                          onPressed: () => context.go('/meal-plans/generate'),
-                        ),
-                      ],
-                    ),
+                    if (mealPlan.notes != null && mealPlan.notes!.isNotEmpty)
+                      _buildSection(
+                        context,
+                        title: 'Notes',
+                        content: Text(mealPlan.notes!),
+                      ),
                   ],
                 ),
               ),
@@ -258,11 +210,54 @@ class MealPlanResultScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildMacroRow(BuildContext context, String label, String value) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+        ),
+        Text(
+          value,
+          style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSection(
+    BuildContext context, {
+    required String title,
+    required Widget content,
+  }) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+        content,
+      ],
+    );
+  }
 }
 
 class _MacroWidget extends StatelessWidget {
   final String label;
-  final int value;
+  final double value;
   final String unit;
   final Color color;
   final Color textColor;
@@ -292,31 +287,6 @@ class _MacroWidget extends StatelessWidget {
         ),
         Text(unit, style: textTheme.bodyMedium?.copyWith(color: textColor)),
       ],
-    );
-  }
-}
-
-class _FeedbackButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-  final Color color;
-  final Color textColor;
-
-  const _FeedbackButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    required this.color,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon, color: textColor),
-      label: Text(label, style: TextStyle(color: textColor)),
     );
   }
 }
