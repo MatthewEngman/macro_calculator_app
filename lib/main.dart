@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:macro_masher/src/core/theme/app_theme.dart';
 import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 import 'dart:io';
 import 'package:path/path.dart';
@@ -282,10 +283,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'Macro Masher',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-      ),
+      theme: AppTheme.themeData(),
       routerConfig: router, // Use routerConfig for GoRouter 6.x+
     );
   }

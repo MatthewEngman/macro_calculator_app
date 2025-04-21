@@ -56,42 +56,107 @@ final authStateListenerProvider = Provider<void>((ref) {
       previousUser = user;
 
       if (user != null && !user.isAnonymous) {
+        print('Auth state listener: Google user detected: ${user.uid}');
         // When a user signs in, check if they need onboarding
         final prefs = ref.read(sharedPreferencesProvider);
         final onboardingComplete =
-            prefs.getBool('onboarding_complete') ?? false;
+            prefs.getBool('onboarding_complete_${user.uid}') ??
+            prefs.getBool('onboarding_complete') ??
+            false;
+
+        print('Auth state listener: Onboarding complete: $onboardingComplete');
 
         if (!onboardingComplete) {
           // User needs onboarding, navigate to onboarding screen
-          Future.delayed(Duration(milliseconds: 100), () {
-            ref.read(navigationProvider)('/onboarding');
+          print(
+            'Auth state listener: Navigating to onboarding for Google user',
+          );
+          // Use a longer delay to ensure the app is fully initialized
+          Future.delayed(Duration(milliseconds: 500), () {
+            try {
+              ref.read(navigationProvider)('/onboarding');
+              print('Auth state listener: Navigation to onboarding triggered');
+            } catch (e) {
+              print('Auth state listener: Error navigating to onboarding: $e');
+            }
           });
           return;
         }
 
         // Otherwise, check if they have a profile and create one if needed
-        final syncService = await ref.read(firestoreSyncServiceProvider.future);
-
         try {
+          print('Auth state listener: Checking for user profile');
+          final syncService = await ref.read(
+            firestoreSyncServiceProvider.future,
+          );
           final userInfos = await syncService.getSavedUserInfos(user.uid);
+
           if (userInfos.isEmpty) {
             // No user profile found, this is likely a new Google sign-in
             // Redirect to onboarding instead of creating a default profile
-            Future.delayed(Duration(milliseconds: 100), () {
-              ref.read(navigationProvider)('/onboarding');
+            print(
+              'Auth state listener: No profile found, navigating to onboarding',
+            );
+            Future.delayed(Duration(milliseconds: 500), () {
+              try {
+                ref.read(navigationProvider)('/onboarding');
+                print(
+                  'Auth state listener: Navigation to onboarding triggered (no profile)',
+                );
+              } catch (e) {
+                print(
+                  'Auth state listener: Error navigating to onboarding: $e',
+                );
+              }
             });
             return;
+          } else {
+            print(
+              'Auth state listener: User profile found, navigating to dashboard',
+            );
+            // User has a profile, navigate to dashboard
+            Future.delayed(Duration(milliseconds: 500), () {
+              try {
+                ref.read(navigationProvider)('/');
+                print('Auth state listener: Navigation to dashboard triggered');
+              } catch (e) {
+                print('Auth state listener: Error navigating to dashboard: $e');
+              }
+            });
           }
         } catch (e, stack) {
           print(
             'Error checking/creating user profile in auth listener: $e\n$stack',
           );
-          // Handle error appropriately, maybe log it
+          // Handle error by still navigating to onboarding
+          print(
+            'Auth state listener: Error checking profile, navigating to onboarding',
+          );
+          Future.delayed(Duration(milliseconds: 500), () {
+            try {
+              ref.read(navigationProvider)('/onboarding');
+              print(
+                'Auth state listener: Navigation to onboarding triggered (error case)',
+              );
+            } catch (e) {
+              print('Auth state listener: Error navigating to onboarding: $e');
+            }
+          });
         }
       } else if (user != null && user.isAnonymous) {
         // Anonymous user, show onboarding
-        Future.delayed(Duration(milliseconds: 100), () {
-          ref.read(navigationProvider)('/onboarding');
+        print(
+          'Auth state listener: Anonymous user detected, navigating to onboarding',
+        );
+        Future.delayed(Duration(milliseconds: 500), () {
+          try {
+            ref.read(navigationProvider)('/onboarding');
+            print(
+              'Auth state listener: Navigation to onboarding triggered (anonymous)',
+            );
+          } catch (e) {
+            print('Auth state listener: Error navigating to onboarding: $e');
+          }
         });
       }
     });

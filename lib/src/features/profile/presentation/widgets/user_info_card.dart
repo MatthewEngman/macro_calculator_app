@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:macro_masher/src/core/persistence/repository_providers.dart';
+import 'package:macro_masher/src/core/theme/app_theme.dart';
 import '../../domain/entities/user_info.dart';
 import '../providers/settings_provider.dart';
 
@@ -22,15 +23,16 @@ class UserInfoCard extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Card(
-      elevation: 0,
-      color: colorScheme.secondaryContainer,
+      // Use Material 3 card styling
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         onTap:
             onTap ??
             () {
               _showUserInfoDetailsDialog(context, ref);
             },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -189,16 +191,14 @@ class UserInfoCard extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    OutlinedButton.icon(
+                    FilledButton.icon(
                       onPressed: () {
                         Navigator.of(context).pop();
                         _showEditProfileDialog(context, ref);
                       },
                       icon: const Icon(Icons.edit),
                       label: const Text('Edit Profile'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colorScheme.primary,
-                      ),
+                      style: AppTheme.filledButtonStyle(context),
                     ),
                     if (userInfo.isDefault)
                       Container(
@@ -223,7 +223,7 @@ class UserInfoCard extends ConsumerWidget {
                         ),
                       )
                     else
-                      OutlinedButton.icon(
+                      FilledButton.icon(
                         onPressed: () async {
                           if (userInfo.id != null) {
                             final auth = ref.read(firebaseAuthProvider);
@@ -255,9 +255,7 @@ class UserInfoCard extends ConsumerWidget {
                         },
                         icon: Icon(Icons.star_outline, color: Colors.amber),
                         label: const Text('Set as Default'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                        ),
+                        style: AppTheme.filledButtonStyle(context),
                       ),
                   ],
                 ),
@@ -271,10 +269,7 @@ class UserInfoCard extends ConsumerWidget {
                     },
                     icon: const Icon(Icons.calculate),
                     label: const Text('Calculate with this Profile'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                    ),
+                    style: AppTheme.filledButtonStyle(context),
                   ),
                 ),
                 const SizedBox(height: 16),
