@@ -132,7 +132,77 @@ class DatabaseHelper {
   /// Force reopen the database
   static Future<Database> reopenDatabase() async {
     await closeDatabase();
-    return await database;
+    return await getInstance();
+  }
+
+  /// Force recreate the database completely - use this as a last resort for persistent database issues
+  static Future<Database> forceRecreateDatabase() async {
+    print(
+      'Force recreate requested - implementing aggressive recovery strategy',
+    );
+    try {
+      return await _recreateDatabaseCompletely();
+    } catch (e) {
+      print('Error during forced database recreation: $e');
+      // If complete recreation fails, try one more approach with explicit deletion
+      await closeDatabase();
+
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, _databaseName);
+
+      try {
+        // Delete all related database files
+        final dbFile = File(path);
+        if (await dbFile.exists()) {
+          await dbFile.delete();
+        }
+
+        // Delete journal files too
+        final journalFile = File('$path-journal');
+        if (await journalFile.exists()) {
+          await journalFile.delete();
+        }
+
+        final shmFile = File('$path-shm');
+        if (await shmFile.exists()) {
+          await shmFile.delete();
+        }
+
+        final walFile = File('$path-wal');
+        if (await walFile.exists()) {
+          await walFile.delete();
+        }
+
+        // Open with most permissive settings
+        _database = await openDatabase(
+          path,
+          version: _databaseVersion,
+          onCreate: _onCreate,
+          onConfigure: _onConfigure,
+          singleInstance: false,
+        );
+
+        // Configure with minimal constraints
+        await _database!.execute('PRAGMA journal_mode = DELETE');
+        await _database!.execute('PRAGMA synchronous = OFF');
+        await _database!.execute('PRAGMA locking_mode = NORMAL');
+
+        // Test write capability
+        await _database!.execute(
+          'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
+        );
+        await _database!.execute(
+          'INSERT INTO _write_test_table (id) VALUES (${DateTime.now().millisecondsSinceEpoch})',
+        );
+        await _database!.execute('DROP TABLE IF EXISTS _write_test_table');
+
+        print('Database successfully recreated with minimal constraints');
+        return _database!;
+      } catch (finalError) {
+        print('All database recovery attempts failed: $finalError');
+        rethrow;
+      }
+    }
   }
 
   /// Verifies that the database is writable and attempts to recover if it's not.

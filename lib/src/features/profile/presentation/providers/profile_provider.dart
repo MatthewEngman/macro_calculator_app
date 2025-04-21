@@ -224,7 +224,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<List<MacroResult>>> {
   Future<void> _initialize() async {
     state = const AsyncValue.loading();
     try {
-      _repository = await ref.read(
+      _repository = await ref.watch(
         persistence.profileRepositorySyncProvider.future,
       );
       await loadSavedMacros();
@@ -240,26 +240,126 @@ class ProfileNotifier extends StateNotifier<AsyncValue<List<MacroResult>>> {
     try {
       // _repository should be initialized by _initialize before this is called
       final macros = await _repository.getSavedMacros(userId: userId);
-      state = AsyncValue.data(macros);
+
+      // Process the macros to remove duplicates and ensure only one default
+      final processedMacros = _processMacroResults(macros);
+
+      state = AsyncValue.data(processedMacros);
     } catch (e, stack) {
       state = AsyncValue.error(e, stack);
       print('Error loading saved macros: $e');
     }
   }
 
+  // Helper method to process macro results and remove duplicates
+  List<MacroResult> _processMacroResults(List<MacroResult> macros) {
+    if (macros.isEmpty) return [];
+
+    // Use a map to track unique IDs
+    final Map<String, MacroResult> uniqueMacros = {};
+
+    // Track if we've seen a default calculation
+    bool hasDefault = false;
+    MacroResult? defaultMacro;
+
+    // First pass: collect unique macros and find the default
+    for (final macro in macros) {
+      // Skip entries with null or empty IDs
+      if (macro.id == null || macro.id!.isEmpty) continue;
+
+      // Skip entries with invalid values (like zero calories)
+      if (macro.calories <= 0 || macro.protein <= 0) continue;
+
+      // If this is a default macro, track it
+      if (macro.isDefault) {
+        if (!hasDefault) {
+          hasDefault = true;
+          defaultMacro = macro;
+        }
+        // Only keep the first default we encounter
+        uniqueMacros[macro.id!] = macro;
+      } else {
+        // For non-default macros, always keep the most recent version
+        uniqueMacros[macro.id!] = macro;
+      }
+    }
+
+    // If we have no default but have macros, set the most recent as default
+    if (!hasDefault && uniqueMacros.isNotEmpty) {
+      // Find the most recent macro by timestamp
+      final sortedMacros =
+          uniqueMacros.values.toList()..sort((a, b) {
+            final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime); // Descending order
+          });
+
+      if (sortedMacros.isNotEmpty) {
+        final mostRecent = sortedMacros.first;
+        // Update the map with this macro marked as default
+        uniqueMacros[mostRecent.id!] = mostRecent.copyWith(isDefault: true);
+      }
+    }
+
+    // Convert map values to list and sort by timestamp (newest first)
+    final result =
+        uniqueMacros.values.toList()..sort((a, b) {
+          final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bTime.compareTo(aTime); // Descending order
+        });
+
+    return result;
+  }
+
   Future<void> saveMacro(MacroResult result, {String? userId}) async {
     await _repository.saveMacro(result, userId: userId);
-    await _initialize();
+    await loadSavedMacros(userId: userId);
   }
 
   Future<void> deleteMacro(String id) async {
     await _repository.deleteMacro(id);
-    await _initialize();
+
+    // Get the current state data
+    final currentData = state.valueOrNull;
+    if (currentData != null) {
+      // Check if we deleted a default macro
+      final wasDefault = currentData.any((m) => m.id == id && m.isDefault);
+
+      // If we deleted a default macro, we need to set a new default
+      if (wasDefault) {
+        // Get the user ID from any remaining macro
+        final userId = currentData.isNotEmpty ? currentData.first.userId : null;
+        if (userId != null) {
+          // Find the most recent macro to set as default
+          final remainingMacros = currentData.where((m) => m.id != id).toList();
+          if (remainingMacros.isNotEmpty) {
+            // Sort by timestamp (newest first)
+            remainingMacros.sort((a, b) {
+              final aTime =
+                  a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+              final bTime =
+                  b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+              return bTime.compareTo(aTime);
+            });
+
+            // Set the most recent as default
+            if (remainingMacros.first.id != null) {
+              await setDefaultMacro(remainingMacros.first.id!, userId);
+              return; // loadSavedMacros will be called by setDefaultMacro
+            }
+          }
+        }
+      }
+    }
+
+    // Reload the macros
+    await loadSavedMacros();
   }
 
   Future<void> setDefaultMacro(String id, String userId) async {
     await _repository.setDefaultMacro(id, userId: userId);
-    await _initialize();
+    await loadSavedMacros(userId: userId);
   }
 
   Future<MacroResult?> getDefaultMacro({String? userId}) async {

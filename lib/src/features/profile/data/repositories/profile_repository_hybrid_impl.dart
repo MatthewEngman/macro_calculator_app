@@ -363,28 +363,32 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
           'ProfileRepositoryHybridImpl: Trying to find any valid saved macro',
         );
         final savedMacros = await getSavedMacros(userId: uid);
-        final validMacro = savedMacros.firstWhere(
-          (macro) => macro.calories > 0 && macro.protein > 0,
-          orElse:
-              () => MacroResult(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                calories: 2000, // Default fallback values
-                protein: 150,
-                carbs: 200,
-                fat: 67,
-                calculationType: 'default_fallback',
-                isDefault: true,
-                name: 'Default Fallback',
-                lastModified: DateTime.now(),
-                userId: uid, // Ensure userId is set
-              ),
-        );
 
-        print(
-          'ProfileRepositoryHybridImpl: Using valid macro: ${validMacro.id}, Calories: ${validMacro.calories}',
-        );
-        _lastValidMacroResult = validMacro;
-        return validMacro;
+        // Only use macros that already exist and have valid values
+        final validMacros =
+            savedMacros
+                .where((macro) => macro.calories > 0 && macro.protein > 0)
+                .toList();
+
+        if (validMacros.isNotEmpty) {
+          // Sort by timestamp to get the most recent
+          validMacros.sort((a, b) {
+            final aTime = a.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final bTime = b.timestamp ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return bTime.compareTo(aTime); // Descending order
+          });
+
+          final mostRecentValidMacro = validMacros.first;
+          print('Using existing valid macro: ${mostRecentValidMacro.id}');
+          _lastValidMacroResult = mostRecentValidMacro;
+          return mostRecentValidMacro;
+        }
+
+        // If we've reached this point, we don't have any valid macros
+        // Instead of creating a fallback, just return null
+        // The UI will handle this case appropriately
+        print('No valid macros found, returning null');
+        return null;
       } catch (e) {
         print(
           'ProfileRepositoryHybridImpl: Error getting default macro (attempt ${retryCount + 1}): $e',
@@ -412,20 +416,9 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
       return _lastValidMacroResult;
     }
 
-    // Create a default fallback macro if nothing else is available
-    print('ProfileRepositoryHybridImpl: Creating emergency fallback macro');
-    return MacroResult(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      calories: 2000, // Default fallback values
-      protein: 150,
-      carbs: 200,
-      fat: 67,
-      calculationType: 'error_fallback',
-      isDefault: true,
-      name: 'Error Fallback',
-      lastModified: DateTime.now(),
-      userId: uid, // Ensure userId is set
-    );
+    // Return null instead of creating an emergency fallback
+    print('ProfileRepositoryHybridImpl: No valid macro found, returning null');
+    return null;
   }
 
   // Helper method to check if user info has all required fields for calculation

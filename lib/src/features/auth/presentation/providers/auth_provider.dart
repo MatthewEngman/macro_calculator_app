@@ -6,6 +6,7 @@ import 'package:macro_masher/src/core/persistence/shared_preferences_provider.da
 import 'package:macro_masher/src/core/routing/app_router.dart';
 import 'package:macro_masher/src/features/calculator/data/repositories/macro_calculation_db.dart';
 import 'package:macro_masher/src/features/calculator/domain/entities/macro_result.dart';
+import 'package:macro_masher/src/features/profile/presentation/providers/profile_provider.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../../profile/domain/entities/user_info.dart' as app;
@@ -105,43 +106,73 @@ Future<void> _migrateUserData(
 ) async {
   print('Starting data migration from $oldUserId to $newUserId');
 
+  if (oldUserId.isEmpty || newUserId.isEmpty) {
+    print(
+      'Invalid user IDs for migration: oldUserId=$oldUserId, newUserId=$newUserId',
+    );
+    return;
+  }
+
   try {
-    // 1. Get the repositories we need
+    // 1. Get all the data from the old user
     final syncService = await ref.read(firestoreSyncServiceProvider.future);
     final profileRepository = await ref.read(
       profileRepositorySyncProvider.future,
     );
 
-    // Track if we successfully migrated a default calculation
-    bool defaultMigrated = false;
-    String? defaultCalculationId;
-
-    // 2. Get all user data from the old user ID
+    // 2. Get user profiles
     final userInfos = await syncService.getSavedUserInfos(oldUserId);
     print('Found ${userInfos.length} user profiles to migrate');
 
-    // 3. Get all macro calculations for the old user ID
-    // Use the hybrid storage approach that handles database read-only issues
+    // 3. Migrate macro calculations
+    String? defaultCalculationId;
+    bool defaultMigrated = false;
+
     try {
+      // First, clear any existing default calculations for the new user
+      // to prevent duplicates
       final macroCalculationDB = MacroCalculationDB();
+      await macroCalculationDB.executeWithRecovery(
+        (db) => db.update(
+          'macro_calculations',
+          {'is_default': 0},
+          where: 'user_id = ?',
+          whereArgs: [newUserId],
+        ),
+      );
+
+      // Get all calculations for the old user
       final calculations = await macroCalculationDB.getAllCalculations(
         userId: oldUserId,
       );
       print('Found ${calculations.length} macro calculations to migrate');
 
-      // 5. Migrate macro calculations
+      // Track which calculations have been migrated to avoid duplicates
+      final Set<String> migratedIds = {};
+
       for (final calculation in calculations) {
         try {
-          // Create a copy with the new user ID
-          final updatedCalculation = calculation.copyWith(userId: newUserId);
+          // Skip if we've already migrated this calculation
+          if (calculation.id == null ||
+              calculation.id!.isEmpty ||
+              migratedIds.contains(calculation.id)) {
+            continue;
+          }
 
-          // Check for valid ID before inserting
+          // Update the userId and preserve other properties
+          final updatedCalculation = calculation.copyWith(
+            userId: newUserId,
+            // Don't set isDefault here - we'll handle that separately
+            isDefault: false,
+          );
+
           if (updatedCalculation.id != null &&
               updatedCalculation.id!.isNotEmpty) {
             await macroCalculationDB.insertCalculation(
               updatedCalculation,
               userId: newUserId,
             );
+            migratedIds.add(calculation.id!);
             print('Migrated macro calculation: ${calculation.id}');
 
             // If this was the default calculation, track it for setting later
@@ -193,9 +224,19 @@ Future<void> _migrateUserData(
     }
 
     // 4. Migrate user profiles
+    final Set<String> migratedProfileIds = {};
+
     for (final userInfo in userInfos) {
       try {
+        // Skip if we've already migrated this profile
+        if (userInfo.id == null ||
+            userInfo.id!.isEmpty ||
+            migratedProfileIds.contains(userInfo.id)) {
+          continue;
+        }
+
         await syncService.saveUserInfo(newUserId, userInfo);
+        migratedProfileIds.add(userInfo.id!);
         print('Migrated user profile: ${userInfo.id}');
 
         // If we haven't migrated a default calculation yet and this profile is default
@@ -212,6 +253,18 @@ Future<void> _migrateUserData(
 
             // Save it to the database
             final macroCalculationDB = MacroCalculationDB();
+
+            // First, clear any existing defaults
+            await macroCalculationDB.executeWithRecovery(
+              (db) => db.update(
+                'macro_calculations',
+                {'is_default': 0},
+                where: 'user_id = ?',
+                whereArgs: [newUserId],
+              ),
+            );
+
+            // Then save the new default
             await macroCalculationDB.insertCalculation(
               macroResult.copyWith(isDefault: true),
               userId: newUserId,
@@ -242,6 +295,9 @@ Future<void> _migrateUserData(
     } catch (e) {
       print('Error migrating SharedPreferences data: $e');
     }
+
+    // 7. Force refresh profile provider to update UI
+    ref.invalidate(profileProvider);
 
     print('Data migration completed successfully');
   } catch (e, stack) {

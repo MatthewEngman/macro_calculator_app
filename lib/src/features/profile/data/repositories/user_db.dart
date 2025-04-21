@@ -9,26 +9,30 @@ class UserDB {
 
   UserDB();
 
-  /// Generic method to execute database operations with automatic recovery
-  /// This handles both read-only errors and database closure errors
+  /// Execute a database operation with recovery attempts if the database is in read-only mode
   Future<T> executeWithRecovery<T>(
-    Future<T> Function(Database db) operation,
+    Future<T> Function(Database db) dbOperation,
   ) async {
     int retryCount = 0;
-    const maxRetries = 3;
+    const int maxRetries = 3;
+    bool forceRecreate = false;
 
     while (retryCount < maxRetries) {
       try {
+        // If we've already tried normal recovery and it failed, use more aggressive approach
+        if (forceRecreate) {
+          print('Using aggressive database recovery strategy');
+          await DatabaseHelper.forceRecreateDatabase();
+          forceRecreate = false; // Reset flag after attempting recreation
+        }
+
         // Always get the latest database instance
         final db = await DatabaseHelper.getInstance();
-        return await operation(db);
+        return await dbOperation(db);
       } catch (e) {
-        final errorMsg = e.toString().toLowerCase();
-        print('Database error in executeWithRecovery: $e');
-
-        if (errorMsg.contains('read-only') ||
-            errorMsg.contains('database_closed') ||
-            errorMsg.contains('database is closed')) {
+        // Check if this is a read-only error
+        if (e.toString().contains('read-only')) {
+          print('Database error in executeWithRecovery: $e');
           print(
             'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
           );
@@ -36,19 +40,65 @@ class UserDB {
           try {
             // Get a fresh database instance with recovery if needed
             await DatabaseHelper.verifyDatabaseWritable();
+
+            // If this is the second retry and we're still having issues,
+            // mark for aggressive recovery on next attempt
+            if (retryCount >= 1) {
+              forceRecreate = true;
+            }
+
             retryCount++;
 
             // Small delay before retry to allow system to stabilize
-            await Future.delayed(Duration(milliseconds: 200));
+            await Future.delayed(Duration(milliseconds: 300));
             continue; // Retry the operation with the recovered database
           } catch (recoveryError) {
             print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
-              throw Exception(
-                'Database recovery failed after $maxRetries attempts: $e',
-              );
+              // On final attempt, try the most aggressive recovery
+              try {
+                print(
+                  'Force recreate requested - implementing aggressive recovery strategy',
+                );
+                await DatabaseHelper.forceRecreateDatabase();
+                // One final attempt with the recreated database
+                try {
+                  // Always get the latest database instance
+                  final db = await DatabaseHelper.getInstance();
+                  return await dbOperation(db);
+                } catch (finalAttemptError) {
+                  print(
+                    'Final attempt failed after database recreation: $finalAttemptError',
+                  );
+                  throw Exception(
+                    'Database operation failed after complete recreation: $finalAttemptError',
+                  );
+                }
+              } catch (recreateError) {
+                print('Database recreation failed: $recreateError');
+                throw Exception(
+                  'Database recovery failed after $maxRetries attempts: $e',
+                );
+              }
             }
           }
+        } else if (e.toString().contains('FOREIGN KEY constraint failed')) {
+          // Special handling for foreign key constraint failures
+          print('Foreign key constraint error: $e');
+
+          // Try to fix the constraint issue by ensuring the related record exists
+          try {
+            // This is a placeholder - you'll need to implement specific logic based on your schema
+            await _attemptForeignKeyRepair();
+            retryCount++;
+            continue;
+          } catch (repairError) {
+            print('Foreign key repair failed: $repairError');
+            // Continue with normal retry flow
+          }
+
+          retryCount++;
+          continue;
         } else {
           // For other errors, just rethrow
           rethrow;
@@ -58,6 +108,18 @@ class UserDB {
     }
 
     throw Exception('Database operation failed after $maxRetries attempts');
+  }
+
+  /// Attempt to repair foreign key constraint issues
+  /// This is a placeholder method that should be implemented based on your specific schema
+  Future<void> _attemptForeignKeyRepair() async {
+    // Example implementation:
+    // 1. Identify which foreign key constraint failed
+    // 2. Insert the missing parent record if possible
+    // 3. Or modify the operation to avoid the constraint
+
+    // For now, just add a delay to allow any concurrent operations to complete
+    await Future.delayed(Duration(milliseconds: 500));
   }
 
   /// Creates the users table in the database
@@ -105,8 +167,7 @@ class UserDB {
       userData['last_modified'] = lastModified;
       userData['is_default'] = user.isDefault ? 1 : 0;
 
-      final db = await DatabaseHelper.getInstance();
-      await executeWithRecovery((db) async {
+      return await executeWithRecovery((db) async {
         print('[DIAG] Inserting user with DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
 
@@ -119,11 +180,8 @@ class UserDB {
         print(
           '[DIAG] Insert completed successfully with DB hash: ${db.hashCode}',
         );
-        return true;
+        return id;
       });
-
-      print('UserDB: Successfully inserted user with ID: $id');
-      return id;
     } catch (e) {
       print('UserDB: Error inserting user: $e');
       rethrow;
@@ -171,7 +229,6 @@ class UserDB {
 
       int rowsAffected = 0;
 
-      final db = await DatabaseHelper.getInstance();
       return await executeWithRecovery((db) async {
         print('[DIAG] Updating user with DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
@@ -296,7 +353,6 @@ class UserDB {
     required String firebaseUserId,
   }) async {
     try {
-      final db = await DatabaseHelper.getInstance();
       return await executeWithRecovery((db) async {
         print('[DIAG] Setting default user with DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
