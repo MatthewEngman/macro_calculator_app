@@ -244,4 +244,46 @@ class MacroResult {
           lastModified: lastModified ?? timestamp,
         );
   }
+
+  /// Creates a MacroResult from a database map.
+  /// This is used when retrieving data from the SQLite database.
+  static MacroResult fromMap(Map<String, dynamic> map) {
+    return MacroResult(
+      id: map['id'],
+      calories: (map['calories'] as num?)?.toDouble() ?? 0.0,
+      protein: (map['protein'] as num?)?.toDouble() ?? 0.0,
+      carbs: (map['carbs'] as num?)?.toDouble() ?? 0.0,
+      fat: (map['fat'] as num?)?.toDouble() ?? 0.0,
+      calculationType: map['calculation_type'],
+      timestamp:
+          map['created_at'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(map['created_at'])
+              : null,
+      isDefault: map['is_default'] == 1,
+      name: map['name'],
+      lastModified:
+          map['last_modified'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(map['last_modified'])
+              : null,
+    );
+  }
+
+  /// Converts this MacroResult to a map for database storage.
+  /// This is used when storing data in the SQLite database.
+  Map<String, dynamic> toMap() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return {
+      'id': id,
+      'calories': calories,
+      'protein': protein,
+      'carbs': carbs,
+      'fat': fat,
+      'calculation_type': calculationType,
+      'created_at': timestamp?.millisecondsSinceEpoch ?? now,
+      'updated_at': now,
+      'is_default': isDefault ? 1 : 0,
+      'name': name,
+      'last_modified': lastModified?.millisecondsSinceEpoch ?? now,
+    };
+  }
 }

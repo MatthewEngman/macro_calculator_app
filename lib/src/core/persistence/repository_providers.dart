@@ -32,82 +32,49 @@ final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
 final calculatorRepositorySQLiteProvider =
     Provider<CalculatorRepositorySQLiteImpl>((ref) {
       final auth = ref.watch(firebaseAuthProvider);
-      return CalculatorRepositorySQLiteImpl(
-        auth,
-        ref.watch(macroCalculationDBProvider),
-      );
+      return CalculatorRepositorySQLiteImpl(auth);
     });
 
 // Provider for PersistenceService (Still needed if other parts of the app use it directly)
 final persistenceServiceProvider = Provider<PersistenceService>((ref) {
-  final db = ref.watch(db_provider_impl.databaseProvider);
-  print(
-    'repository_providers: persistenceServiceProvider watching db hash: ${db.hashCode}',
-  );
-  if (db == null) {
-    throw Exception('Database not initialized for PersistenceService');
-  }
-  // Initialize PersistenceService, assuming its constructor takes Database
-  // If PersistenceService doesn't need the db directly anymore, adjust this.
-  // Assuming PersistenceService constructor was PersistenceService(this.database)
-  return PersistenceService(db)
+  // PersistenceService no longer needs a direct database reference
+  // It will get the database dynamically using DatabaseHelper.getInstance()
+  return PersistenceService()
     ..initialize(); // Ensure initialization logic is handled
 });
 
-// Provider for UserDB - NEW
+// Provider for UserDB - UPDATED
 final userDBProvider = Provider<UserDB>((ref) {
-  final db = ref.watch(db_provider_impl.databaseProvider);
-  if (db == null) {
-    throw Exception('Database not initialized for UserDB');
-  }
-  return UserDB(database: db);
+  return UserDB();
 });
 
 // Provider for LocalStorageService - UPDATED
 final localStorageServiceProvider = Provider<LocalStorageService>((ref) {
-  // Watch the databaseProvider directly
-  final db = ref.watch(db_provider_impl.databaseProvider);
-  print(
-    'repository_providers: localStorageServiceProvider watching db hash: ${db.hashCode}',
-  );
-  if (db == null) {
-    throw Exception('Database not initialized for LocalStorageService');
-  }
-  // Watch the new UserDB provider
+  // Watch the UserDB provider
   final userDB = ref.watch(userDBProvider);
-  // Instantiate LocalStorageService with the Database instance and UserDB instance
-  return LocalStorageService(userDB, db);
+  // Instantiate LocalStorageService with just the UserDB instance
+  return LocalStorageService(userDB);
 });
 
-// Provider for MealPlanDB - NEW
+// Provider for MealPlanDB - UPDATED
 final mealPlanDBProvider = Provider<MealPlanDB>((ref) {
-  final db = ref.watch(db_provider_impl.databaseProvider);
-  if (db == null) {
-    throw Exception('Database not initialized for MealPlanDB');
-  }
-  return MealPlanDB(database: db);
+  return MealPlanDB();
 });
 
-// Provider for MacroCalculationDB - NEW
+// Provider for MacroCalculationDB - UPDATED
 final macroCalculationDBProvider = Provider<MacroCalculationDB>((ref) {
-  final db = ref.watch(db_provider_impl.databaseProvider);
-  if (db == null) {
-    throw Exception('Database not initialized for MacroCalculationDB');
-  }
-  return MacroCalculationDB(database: db);
+  return MacroCalculationDB();
 });
 
 // Provider for MealPlanRepositorySQLiteImpl (awaits LocalStorageService)
 final mealPlanRepositorySQLiteProvider = Provider<MealPlanRepositorySQLiteImpl>(
   (ref) {
-    // Await the LocalStorageService provider
-    final storageService = ref.watch(localStorageServiceProvider);
     // Watch the MealPlanDB provider
     final mealPlanDB = ref.watch(mealPlanDBProvider);
     // Watch the UserDB provider
     final userDB = ref.watch(userDBProvider);
     // Pass all three dependencies to the constructor
-    return MealPlanRepositorySQLiteImpl(storageService, mealPlanDB, userDB);
+    return MealPlanRepositorySQLiteImpl(mealPlanDB, userDB);
   },
 );
 

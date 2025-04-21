@@ -10,8 +10,8 @@ import '../../data/repositories/calculator_settings_repository_impl.dart';
 
 // Provider for the PersistenceService using the Database
 final persistenceServiceProvider = Provider<PersistenceService>((ref) {
-  final db = ref.watch(databaseProvider);
-  return PersistenceService(db);
+  // PersistenceService no longer needs a direct database reference
+  return PersistenceService();
 });
 
 // Provider for the UseCase

@@ -29,59 +29,6 @@ Future<void> main() async {
   late FirebaseAuth auth;
   const int databaseVersion = 3; // Define your current DB version
 
-  // Define onCreate logic directly in main
-  Future<void> _onCreate(Database db, int version) async {
-    print('main: Creating database tables for version $version');
-    // Use DatabaseHelper constants to build the SQL
-    await db.execute('''
-      CREATE TABLE ${DatabaseHelper.tableSettings} (
-        ${DatabaseHelper.columnKey} TEXT PRIMARY KEY,
-        ${DatabaseHelper.columnValue} TEXT NOT NULL
-      )
-    ''');
-    print('main: Created settings table');
-    await UserDB.createTable(db);
-    print('main: Created user table');
-    await MealPlanDB.createTable(db);
-    print('main: Created meal plan table');
-    // await MealLogDB.createTable(db); // Assuming MealLogDB has createTable
-    // print('main: Created meal log table');
-    // Macro Calculation table (using constants from MacroCalculationDB)
-    await db.execute('''
-      CREATE TABLE ${MacroCalculationDB.tableName} (
-        ${MacroCalculationDB.columnId} TEXT PRIMARY KEY,
-        ${MacroCalculationDB.columnUserId} TEXT NOT NULL,
-        ${MacroCalculationDB.columnCalories} REAL NOT NULL,
-        ${MacroCalculationDB.columnProtein} REAL NOT NULL,
-        ${MacroCalculationDB.columnCarbs} REAL NOT NULL,
-        ${MacroCalculationDB.columnFat} REAL NOT NULL,
-        ${MacroCalculationDB.columnCalculationType} TEXT,
-        ${MacroCalculationDB.columnCreatedAt} INTEGER NOT NULL,
-        ${MacroCalculationDB.columnUpdatedAt} INTEGER NOT NULL,
-        ${MacroCalculationDB.columnIsDefault} INTEGER NOT NULL DEFAULT 0,
-        ${MacroCalculationDB.columnName} TEXT,
-        ${MacroCalculationDB.columnLastModified} INTEGER NOT NULL
-      )
-    ''');
-    print('main: Created macro calculation table');
-    print('main: All tables created successfully');
-  }
-
-  // Define onUpgrade logic directly in main (adapt as needed based on DatabaseHelper._onUpgrade)
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print('main: Upgrading database from version $oldVersion to $newVersion');
-    // Add upgrade logic here if necessary, similar to DatabaseHelper._onUpgrade
-    // Example: Check oldVersion and add missing tables/columns
-    if (oldVersion < 3) {
-      // Check if tables exist before creating if necessary
-      // Example: if (!await _tableExists(db, UserDB.tableName)) { await UserDB.createTable(db); }
-      // For simplicity now, assume onCreate handles missing tables okay on upgrade if structure changed
-      print('main: Performing upgrade tasks for version 3...');
-      // Add specific ALTER TABLE or CREATE TABLE IF NOT EXISTS commands if needed
-    }
-    print('main: Database upgrade check completed');
-  }
-
   try {
     // Initialize Firebase
     await Firebase.initializeApp(
@@ -90,46 +37,221 @@ Future<void> main() async {
     firestore = FirebaseFirestore.instance;
     auth = FirebaseAuth.instance;
 
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'app_database.db');
+    // Initialize the database with a more aggressive approach
+    try {
+      print('Initializing database through DatabaseHelper...');
 
-    // Force delete existing files
-    final dbFile = File(path);
-    final journalFile = File('$path-journal');
-    final shmFile = File('$path-shm');
-    final walFile = File('$path-wal');
-    if (await dbFile.exists()) {
-      print('Deleting existing database file...');
-      await dbFile.delete();
-    }
-    if (await journalFile.exists()) {
-      await journalFile.delete();
-    }
-    if (await shmFile.exists()) {
-      await shmFile.delete();
-    }
-    if (await walFile.exists()) {
-      await walFile.delete();
+      // Force a clean database initialization
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, 'app_database.db');
+
+      // Delete any existing database files to start fresh
+      final dbFile = File(path);
+      if (await dbFile.exists()) {
+        await dbFile.delete();
+        print('Deleted existing database file during startup');
+      }
+
+      // Delete journal files
+      final journalFile = File('$path-journal');
+      if (await journalFile.exists()) {
+        await journalFile.delete();
+        print('Deleted journal file during startup');
+      }
+
+      final shmFile = File('$path-shm');
+      if (await shmFile.exists()) {
+        await shmFile.delete();
+        print('Deleted shm file during startup');
+      }
+
+      final walFile = File('$path-wal');
+      if (await walFile.exists()) {
+        await walFile.delete();
+        print('Deleted wal file during startup');
+      }
+
+      // Create the database with explicit parameters
+      db = await openDatabase(
+        path,
+        version: databaseVersion,
+        onCreate: (Database db, int version) async {
+          print(
+            'DatabaseHelper: Creating database tables for version $version',
+          );
+
+          // Create settings table
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+              key TEXT PRIMARY KEY,
+              value TEXT,
+              last_modified INTEGER
+            )
+          ''');
+          print('DatabaseHelper: Created settings table');
+
+          // Create users table
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+              id TEXT PRIMARY KEY,
+              firebase_user_id TEXT,
+              name TEXT,
+              age INTEGER,
+              sex TEXT,
+              weight REAL,
+              feet INTEGER,
+              inches REAL,
+              activity_level TEXT,
+              goal TEXT,
+              units TEXT,
+              weight_change_rate REAL DEFAULT 1.0,
+              is_default INTEGER DEFAULT 0,
+              created_at INTEGER,
+              updated_at INTEGER,
+              last_modified INTEGER
+            )
+          ''');
+          print('DatabaseHelper: Created user table');
+
+          // Create macro_calculations table
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS macro_calculations (
+              id TEXT PRIMARY KEY,
+              user_id TEXT,
+              calories REAL,
+              protein REAL,
+              carbs REAL,
+              fat REAL,
+              calculation_type TEXT,
+              created_at INTEGER,
+              updated_at INTEGER,
+              is_default INTEGER DEFAULT 0,
+              name TEXT,
+              last_modified INTEGER,
+              FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            )
+          ''');
+          print('DatabaseHelper: Created macro_calculations table');
+
+          // Create meal plans table
+          await MealPlanDB.createTable(db);
+          print('DatabaseHelper: Created meal plan table');
+
+          // Create meal logs table
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS meal_logs (
+              id TEXT PRIMARY KEY,
+              user_id TEXT,
+              meal_plan_id TEXT,
+              date TEXT,
+              meal_type TEXT,
+              food_item TEXT,
+              calories REAL,
+              protein REAL,
+              carbs REAL,
+              fat REAL,
+              completed INTEGER DEFAULT 0,
+              created_at INTEGER,
+              updated_at INTEGER,
+              last_modified INTEGER,
+              FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+              FOREIGN KEY (meal_plan_id) REFERENCES meal_plans (id) ON DELETE CASCADE
+            )
+          ''');
+          print('DatabaseHelper: Created meal log table');
+
+          print('DatabaseHelper: All tables created successfully');
+        },
+        onUpgrade: (Database db, int oldVersion, int newVersion) async {
+          print(
+            'DatabaseHelper: Upgrading database from v$oldVersion to v$newVersion',
+          );
+
+          if (oldVersion < 2) {
+            // Add weight_change_rate column to users table if upgrading from v1
+            await db.execute(
+              'ALTER TABLE users ADD COLUMN weight_change_rate REAL DEFAULT 1.0',
+            );
+            print(
+              'DatabaseHelper: Added weight_change_rate column to users table',
+            );
+          }
+
+          if (oldVersion < 3) {
+            // Add any schema changes for version 3
+            print('DatabaseHelper: Applying version 3 schema changes');
+          }
+        },
+        onConfigure: (Database db) async {
+          print('DatabaseHelper: Configuring database...');
+
+          // Use rawQuery for PRAGMA statements (execute doesn't work for PRAGMAs)
+          await db.rawQuery('PRAGMA foreign_keys = ON');
+          await db.rawQuery('PRAGMA journal_mode = DELETE');
+          await db.rawQuery('PRAGMA synchronous = NORMAL');
+          await db.rawQuery('PRAGMA locking_mode = NORMAL');
+          await db.rawQuery('PRAGMA busy_timeout = 5000');
+
+          print('DatabaseHelper: Database configured with pragmas');
+        },
+      );
+
+      // Test write operations to verify database is writable
+      final testId = DateTime.now().millisecondsSinceEpoch;
+
+      // First drop the test table if it exists to avoid constraint violations
+      try {
+        await db.execute('DROP TABLE IF EXISTS _write_test_table');
+      } catch (e) {
+        print('Error dropping test table: $e');
+        // Continue anyway
+      }
+
+      // Then create it fresh and test write operations
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
+      );
+      await db.execute('INSERT INTO _write_test_table (id) VALUES ($testId)');
+      await db.execute('DELETE FROM _write_test_table WHERE id = $testId');
+      await db.execute('DROP TABLE IF EXISTS _write_test_table');
+      print('Database write test successful');
+
+      // Set the database in DatabaseHelper to ensure consistency
+      DatabaseHelper.setDatabase(db);
+
+      print('Database successfully initialized through DatabaseHelper');
+    } catch (e) {
+      print('Error initializing database: $e');
+      throw e; // Rethrow to abort app initialization
     }
 
-    print('Initializing database directly in main...');
-    // Call openDatabase directly
-    db = await openDatabase(
-      path,
-      version: databaseVersion,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-      readOnly: false, // Explicitly ensure writable
-      singleInstance: true,
+    // Initialize SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    // Initialize GoRouter
+    final router = appRouter; // Adjust if ref is needed early
+
+    // Setup Riverpod providers
+    final container = ProviderContainer(
+      overrides: [
+        prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
+        repo_providers.firebaseAuthProvider.overrideWithValue(auth),
+        repo_providers.firestoreProvider.overrideWithValue(firestore),
+        navigation.goRouterProvider.overrideWithValue(router),
+        // Use the db instance created directly in main
+        db_provider_impl.databaseProvider.overrideWithValue(db),
+        // Services (these will now correctly use the overridden db via persistenceServiceProvider)
+        repo_providers.localStorageServiceProvider,
+        repo_providers.firestoreSyncServiceProvider,
+      ],
     );
-    print('Database initialized successfully in main.dart.');
-    print('main.dart: Initialized DB HashCode: ${db.hashCode}');
 
-    // Set the database instance for static access (still useful for direct calls if any)
-    DatabaseHelper.setDatabase(
-      db,
-    ); // Keep this if DatabaseHelper is used elsewhere
-    print('Database instances set for static access.');
+    // Start listening to auth changes to potentially trigger sync
+    // container.read(repo_providers.dataSyncManagerProvider).listenToAuthChanges(); // Uncomment if used
+
+    // Start background sync if applicable
+    // await sync_service.startBackgroundSync(container); // Pass container if needed
+
+    runApp(UncontrolledProviderScope(container: container, child: MyApp()));
   } catch (e, stacktrace) {
     print('FATAL: Database initialization failed in main: $e');
     print('Stacktrace: $stacktrace');
@@ -144,34 +266,6 @@ Future<void> main() async {
     );
     return; // Stop execution if DB failed
   }
-
-  // Initialize SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
-  // Initialize GoRouter
-  final router = appRouter; // Adjust if ref is needed early
-
-  // Setup Riverpod providers
-  final container = ProviderContainer(
-    overrides: [
-      prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
-      repo_providers.firebaseAuthProvider.overrideWithValue(auth),
-      repo_providers.firestoreProvider.overrideWithValue(firestore),
-      navigation.goRouterProvider.overrideWithValue(router),
-      // Use the db instance created directly in main
-      db_provider_impl.databaseProvider.overrideWithValue(db),
-      // Services (these will now correctly use the overridden db via persistenceServiceProvider)
-      repo_providers.localStorageServiceProvider,
-      repo_providers.firestoreSyncServiceProvider,
-    ],
-  );
-
-  // Start listening to auth changes to potentially trigger sync
-  // container.read(repo_providers.dataSyncManagerProvider).listenToAuthChanges(); // Uncomment if used
-
-  // Start background sync if applicable
-  // await sync_service.startBackgroundSync(container); // Pass container if needed
-
-  runApp(UncontrolledProviderScope(container: container, child: MyApp()));
 }
 
 class MyApp extends ConsumerWidget {

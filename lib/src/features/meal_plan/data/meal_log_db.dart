@@ -31,7 +31,7 @@ class MealLogDB {
 
   /// Inserts a new meal log into the database
   static Future<String> insertMealLog(MealLog mealLog) async {
-    final db = DatabaseHelper.database;
+    final db = await DatabaseHelper.database;
 
     final mealLogData = mealLog.toMap();
     final id = mealLog.id ?? DateTime.now().millisecondsSinceEpoch.toString();
@@ -44,7 +44,7 @@ class MealLogDB {
 
   /// Deletes a meal log from the database
   static Future<int> deleteMealLog(String id) async {
-    final db = DatabaseHelper.database;
+    final db = await DatabaseHelper.database;
 
     return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
   }
@@ -54,7 +54,7 @@ class MealLogDB {
     DateTime date, {
     required String firebaseUserId,
   }) async {
-    final db = DatabaseHelper.database;
+    final db = await DatabaseHelper.database;
 
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -81,7 +81,7 @@ class MealLogDB {
     DateTime endDate, {
     required String firebaseUserId,
   }) async {
-    final db = DatabaseHelper.database;
+    final db = await DatabaseHelper.database;
 
     final startOfDay = DateTime(startDate.year, startDate.month, startDate.day);
     final endOfDay = DateTime(
@@ -107,5 +107,37 @@ class MealLogDB {
     return List.generate(maps.length, (i) {
       return MealLog.fromMap(maps[i]);
     });
+  }
+
+  /// Gets all meal logs for a user
+  static Future<List<MealLog>> getAllMealLogs({
+    required String firebaseUserId,
+  }) async {
+    final db = await DatabaseHelper.database;
+
+    final List<Map<String, dynamic>> maps = await db.query(
+      tableName,
+      where: 'firebase_user_id = ?',
+      whereArgs: [firebaseUserId],
+      orderBy: 'log_date ASC',
+    );
+
+    return List.generate(maps.length, (i) {
+      return MealLog.fromMap(maps[i]);
+    });
+  }
+
+  /// Updates a meal log in the database
+  static Future<int> updateMealLog(MealLog mealLog) async {
+    final db = await DatabaseHelper.database;
+
+    final mealLogData = mealLog.toMap();
+
+    return await db.update(
+      tableName,
+      mealLogData,
+      where: 'id = ?',
+      whereArgs: [mealLog.id],
+    );
   }
 }

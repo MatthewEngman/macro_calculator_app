@@ -1,10 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 import '../../domain/entities/macro_result.dart';
+import '../../../../core/persistence/database_helper.dart';
 
 class MacroCalculationDB {
-  final Database database;
-
-  MacroCalculationDB({required this.database});
+  MacroCalculationDB();
 
   static const String tableName = 'macro_calculations';
 
@@ -16,32 +15,100 @@ class MacroCalculationDB {
   static const String columnCarbs = 'carbs';
   static const String columnFat = 'fat';
   static const String columnCalculationType = 'calculation_type';
-  // static const String columnTimestamp = 'timestamp'; // Remove, use created_at/updated_at
-  static const String columnCreatedAt = 'created_at'; // Added
-  static const String columnUpdatedAt = 'updated_at'; // Added
+  static const String columnCreatedAt = 'created_at';
+  static const String columnUpdatedAt = 'updated_at';
   static const String columnIsDefault = 'is_default';
   static const String columnName = 'name';
-  // static const String columnFirebaseUserId = 'firebase_user_id'; // Remove
-  static const String columnLastModified = 'last_modified'; // Keep
+  static const String columnLastModified = 'last_modified';
+
+  // In-memory cache for critical data
+  static final Map<String, MacroResult> _defaultCalculationCache = {};
+  static final Map<String, List<MacroResult>> _calculationsCache = {};
+
+  // Helper method to validate if a macro result has valid values
+  bool _isValidMacroResult(MacroResult result) {
+    return result.calories > 0 &&
+        result.protein > 0 &&
+        result.carbs > 0 &&
+        result.fat > 0;
+  }
+
+  /// Generic method to execute database operations with automatic recovery
+  /// This handles both read-only errors and database closure errors
+  Future<T> executeWithRecovery<T>(
+    Future<T> Function(Database db) operation,
+  ) async {
+    int retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      try {
+        // Always get the latest database instance
+        final db = await DatabaseHelper.getInstance();
+        return await operation(db);
+      } catch (e) {
+        final errorMsg = e.toString().toLowerCase();
+        print('Database error in executeWithRecovery: $e');
+
+        if (errorMsg.contains('read-only') ||
+            errorMsg.contains('database_closed') ||
+            errorMsg.contains('database is closed')) {
+          print(
+            'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
+          );
+
+          try {
+            // Get a fresh database instance with aggressive recovery
+            // Always use force recreation for read-only errors
+            await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+
+            retryCount++;
+
+            // Small delay before retry to allow system to stabilize
+            await Future.delayed(Duration(milliseconds: 300));
+            continue; // Retry the operation with the recovered database
+          } catch (recoveryError) {
+            print('Recovery attempt failed: $recoveryError');
+            if (retryCount >= maxRetries - 1) {
+              throw Exception(
+                'Database recovery failed after $maxRetries attempts: $e',
+              );
+            }
+          }
+        } else {
+          // For other errors, just rethrow
+          rethrow;
+        }
+      }
+      retryCount++;
+    }
+
+    throw Exception('Database operation failed after $maxRetries attempts');
+  }
 
   Future<String> insertCalculation(
     MacroResult result, {
     required String userId, // Require userId
   }) async {
     final id = result.id ?? DateTime.now().millisecondsSinceEpoch.toString();
-    // final timestamp = result.timestamp?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch;
     final now = DateTime.now().millisecondsSinceEpoch;
     final createdAt = now;
     final updatedAt = now;
     final lastModified = result.lastModified?.millisecondsSinceEpoch ?? now;
 
+    // Round macro values to 2 decimal places
+    final roundedCalories = double.parse(result.calories.toStringAsFixed(2));
+    final roundedProtein = double.parse(result.protein.toStringAsFixed(2));
+    final roundedCarbs = double.parse(result.carbs.toStringAsFixed(2));
+    final roundedFat = double.parse(result.fat.toStringAsFixed(2));
+
     final Map<String, dynamic> row = {
       columnId: id,
       columnUserId: userId, // Use userId
-      columnCalories: result.calories,
-      columnProtein: result.protein,
-      columnCarbs: result.carbs,
-      columnFat: result.fat,
+      columnCalories: roundedCalories,
+      columnProtein: roundedProtein,
+      columnCarbs: roundedCarbs,
+      columnFat: roundedFat,
       columnCalculationType:
           result.calculationType, // Store the String? value directly
       columnCreatedAt: createdAt, // Use createdAt
@@ -51,13 +118,167 @@ class MacroCalculationDB {
       columnLastModified: lastModified,
     };
 
-    await database.insert(
-      tableName,
-      row,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    print('MacroCalculationDB: Inserted calculation $id for user $userId');
-    return id;
+    // Try a more direct approach for critical operations
+    try {
+      // Get a fresh database instance
+      final db = await DatabaseHelper.getInstance();
+
+      // Try the operation directly
+      await db.insert(
+        tableName,
+        row,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      print(
+        'MacroCalculationDB: Inserted calculation $id for user $userId (direct)',
+      );
+
+      // Update the in-memory cache
+      final resultWithId = MacroResult(
+        id: id,
+        calories: roundedCalories,
+        protein: roundedProtein,
+        carbs: roundedCarbs,
+        fat: roundedFat,
+        calculationType: result.calculationType,
+        isDefault: result.isDefault,
+        name: result.name,
+        lastModified: DateTime.fromMillisecondsSinceEpoch(lastModified),
+      );
+
+      // Only cache valid calculations
+      if (_isValidMacroResult(resultWithId)) {
+        if (result.isDefault) {
+          _defaultCalculationCache[userId] = resultWithId;
+          print(
+            'MacroCalculationDB: Updated default calculation cache for user $userId',
+          );
+        }
+
+        if (_calculationsCache.containsKey(userId)) {
+          // Remove any existing calculation with the same ID
+          _calculationsCache[userId]!.removeWhere((calc) => calc.id == id);
+          // Add the new calculation
+          _calculationsCache[userId]!.add(resultWithId);
+        } else {
+          _calculationsCache[userId] = [resultWithId];
+        }
+        print(
+          'MacroCalculationDB: Updated calculations cache for user $userId',
+        );
+      } else {
+        print(
+          'MacroCalculationDB: Not caching invalid calculation (zero values)',
+        );
+      }
+
+      return id;
+    } catch (e) {
+      print('Direct insert failed: $e');
+
+      // If direct approach fails, try to force recreate the database
+      try {
+        await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+        final db = await DatabaseHelper.getInstance();
+
+        // Try the operation again with the fresh database
+        await db.insert(
+          tableName,
+          row,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        print(
+          'MacroCalculationDB: Inserted calculation $id for user $userId (after recreation)',
+        );
+
+        // Update the in-memory cache
+        final resultWithId = MacroResult(
+          id: id,
+          calories: roundedCalories,
+          protein: roundedProtein,
+          carbs: roundedCarbs,
+          fat: roundedFat,
+          calculationType: result.calculationType,
+          isDefault: result.isDefault,
+          name: result.name,
+          lastModified: DateTime.fromMillisecondsSinceEpoch(lastModified),
+        );
+
+        // Only cache valid calculations
+        if (_isValidMacroResult(resultWithId)) {
+          if (result.isDefault) {
+            _defaultCalculationCache[userId] = resultWithId;
+            print(
+              'MacroCalculationDB: Updated default calculation cache for user $userId',
+            );
+          }
+
+          if (_calculationsCache.containsKey(userId)) {
+            // Remove any existing calculation with the same ID
+            _calculationsCache[userId]!.removeWhere((calc) => calc.id == id);
+            // Add the new calculation
+            _calculationsCache[userId]!.add(resultWithId);
+          } else {
+            _calculationsCache[userId] = [resultWithId];
+          }
+          print(
+            'MacroCalculationDB: Updated calculations cache for user $userId',
+          );
+        } else {
+          print(
+            'MacroCalculationDB: Not caching invalid calculation (zero values)',
+          );
+        }
+
+        return id;
+      } catch (e2) {
+        print('Insert failed even after database recreation: $e2');
+
+        // As a last resort, just update the in-memory cache
+        final resultWithId = MacroResult(
+          id: id,
+          calories: roundedCalories,
+          protein: roundedProtein,
+          carbs: roundedCarbs,
+          fat: roundedFat,
+          calculationType: result.calculationType,
+          isDefault: result.isDefault,
+          name: result.name,
+          lastModified: DateTime.fromMillisecondsSinceEpoch(lastModified),
+        );
+
+        // Only cache valid calculations
+        if (_isValidMacroResult(resultWithId)) {
+          if (result.isDefault) {
+            _defaultCalculationCache[userId] = resultWithId;
+            print(
+              'MacroCalculationDB: Updated default calculation cache for user $userId',
+            );
+          }
+
+          if (_calculationsCache.containsKey(userId)) {
+            // Remove any existing calculation with the same ID
+            _calculationsCache[userId]!.removeWhere((calc) => calc.id == id);
+            // Add the new calculation
+            _calculationsCache[userId]!.add(resultWithId);
+          } else {
+            _calculationsCache[userId] = [resultWithId];
+          }
+          print(
+            'MacroCalculationDB: Updated calculations cache for user $userId',
+          );
+        } else {
+          print(
+            'MacroCalculationDB: Not caching invalid calculation (zero values)',
+          );
+        }
+
+        print('Updated in-memory cache as fallback for user $userId');
+        return id;
+      }
+    }
   }
 
   Future<bool> updateCalculation(
@@ -70,7 +291,6 @@ class MacroCalculationDB {
       );
       await insertCalculation(result, userId: userId);
       return true;
-      // throw ArgumentError('Cannot update a calculation without an ID');
     }
 
     // First check if the record exists and get its current lastModified value
@@ -97,270 +317,290 @@ class MacroCalculationDB {
       return false;
     }
 
-    // final timestamp = result.timestamp?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch;
     final now = DateTime.now().millisecondsSinceEpoch;
     final updatedAt = now;
     final lastModified = now; // Always update lastModified on successful update
 
+    // Round macro values to 2 decimal places
+    final roundedCalories = double.parse(result.calories.toStringAsFixed(2));
+    final roundedProtein = double.parse(result.protein.toStringAsFixed(2));
+    final roundedCarbs = double.parse(result.carbs.toStringAsFixed(2));
+    final roundedFat = double.parse(result.fat.toStringAsFixed(2));
+
     final Map<String, dynamic> row = {
-      // Do not update id or userId or createdAt
-      columnCalories: result.calories,
-      columnProtein: result.protein,
-      columnCarbs: result.carbs,
-      columnFat: result.fat,
+      columnId: result.id,
+      columnUserId: userId, // Use userId
+      columnCalories: roundedCalories,
+      columnProtein: roundedProtein,
+      columnCarbs: roundedCarbs,
+      columnFat: roundedFat,
       columnCalculationType:
           result.calculationType, // Store the String? value directly
-      // columnTimestamp: timestamp, // Remove
       columnUpdatedAt: updatedAt, // Update updatedAt
       columnIsDefault: result.isDefault ? 1 : 0,
       columnName: result.name,
-      // columnFirebaseUserId: firebaseUserId, // Remove
       columnLastModified: lastModified, // Update lastModified
     };
 
-    final rowsAffected = await database.update(
-      tableName,
-      row,
-      where: '$columnId = ?', // Update based on primary key
-      whereArgs: [result.id],
+    final rowsAffected = await executeWithRecovery(
+      (db) => db.update(
+        tableName,
+        row,
+        where: '$columnId = ?', // Update based on primary key
+        whereArgs: [result.id],
+      ),
     );
     print(
       'MacroCalculationDB: Updated calculation ${result.id}. Rows affected: $rowsAffected',
     );
+
+    // Update the in-memory cache
+    final resultWithId = MacroResult(
+      id: result.id,
+      calories: roundedCalories,
+      protein: roundedProtein,
+      carbs: roundedCarbs,
+      fat: roundedFat,
+      calculationType: result.calculationType,
+      isDefault: result.isDefault,
+      name: result.name,
+      lastModified: DateTime.fromMillisecondsSinceEpoch(lastModified),
+    );
+
+    // Only cache valid calculations
+    if (_isValidMacroResult(resultWithId)) {
+      if (result.isDefault) {
+        _defaultCalculationCache[userId] = resultWithId;
+      }
+
+      if (_calculationsCache.containsKey(userId)) {
+        // Remove any existing calculation with the same ID
+        _calculationsCache[userId]!.removeWhere((calc) => calc.id == result.id);
+        // Add the new calculation
+        _calculationsCache[userId]!.add(resultWithId);
+      } else {
+        _calculationsCache[userId] = [resultWithId];
+      }
+    } else {
+      print(
+        'MacroCalculationDB: Not caching invalid calculation (zero values)',
+      );
+    }
+
     return rowsAffected > 0;
   }
 
-  // Update to only use userId
   Future<List<MacroResult>> getAllCalculations({
     required String userId, // Require userId
   }) async {
-    final List<Map<String, dynamic>> maps = await database.query(
-      tableName,
-      where: '$columnUserId = ?', // Query by userId
-      whereArgs: [userId],
-      orderBy: '$columnLastModified DESC', // Order by lastModified
-    );
-    /* // Old logic
-    if (userId != null) {
-      maps = await database.query(
-        tableName,
-        where: '$columnUserId = ?',
-        whereArgs: [userId],
-        orderBy: '$columnTimestamp DESC',
+    // First check the in-memory cache
+    if (_calculationsCache.containsKey(userId)) {
+      print(
+        'MacroCalculationDB: Retrieved calculations from in-memory cache for user $userId',
       );
-    } else if (firebaseUserId != null) {
-      maps = await database.query(
-        tableName,
-        where: '$columnFirebaseUserId = ?',
-        whereArgs: [firebaseUserId],
-        orderBy: '$columnTimestamp DESC',
-      );
-    } else {
-      maps = await database.query(tableName, orderBy: '$columnTimestamp DESC');
+      return _calculationsCache[userId]!;
     }
-    */
+
+    final List<Map<String, dynamic>> maps = await executeWithRecovery(
+      (db) => db.query(
+        tableName,
+        where: '$columnUserId = ?', // Query by userId
+        whereArgs: [userId],
+        orderBy: '$columnLastModified DESC', // Order by lastModified
+      ),
+    );
 
     if (maps.isEmpty) return [];
 
-    return List.generate(maps.length, (i) {
-      // final calculationTypeString = maps[i][columnCalculationType];
-      // final calculationType = Goal.values.firstWhere(
-      //   (e) => e.toString() == calculationTypeString,
-      //   orElse: () => Goal.maintain, // Default value or handle error
-      // );
-      final calculationType = maps[i][columnCalculationType];
-
-      return MacroResult(
-        id: maps[i][columnId],
-        calories: maps[i][columnCalories]?.toDouble() ?? 0.0,
-        protein: maps[i][columnProtein]?.toDouble() ?? 0.0,
-        carbs: maps[i][columnCarbs]?.toDouble() ?? 0.0,
-        fat: maps[i][columnFat]?.toDouble() ?? 0.0,
-        calculationType: calculationType,
-        timestamp:
-            maps[i][columnLastModified] != null
-                ? DateTime.fromMillisecondsSinceEpoch(
-                  maps[i][columnLastModified],
-                )
-                : null,
-        lastModified:
-            maps[i][columnLastModified] != null
-                ? DateTime.fromMillisecondsSinceEpoch(
-                  maps[i][columnLastModified],
-                )
-                : null,
-        isDefault: maps[i][columnIsDefault] == 1,
-        name: maps[i][columnName],
-      );
+    final results = List.generate(maps.length, (i) {
+      return MacroResult.fromMap(maps[i]);
     });
+
+    // Update the in-memory cache
+    _calculationsCache[userId] = results;
+
+    return results;
   }
 
   Future<MacroResult?> getCalculationById(String id) async {
-    final List<Map<String, dynamic>> maps = await database.query(
-      tableName,
-      where: '$columnId = ?',
-      whereArgs: [id],
-      limit: 1,
+    final List<Map<String, dynamic>> maps = await executeWithRecovery(
+      (db) => db.query(
+        tableName,
+        where: '$columnId = ?',
+        whereArgs: [id],
+        limit: 1,
+      ),
     );
 
     if (maps.isEmpty) return null;
 
-    // final calculationTypeString = maps[0][columnCalculationType];
-    // final calculationType = Goal.values.firstWhere(
-    //   (e) => e.toString() == calculationTypeString,
-    //   orElse: () => Goal.maintain,
-    // );
-    final calculationType = maps[0][columnCalculationType];
-
-    return MacroResult(
-      id: maps[0][columnId],
-      calories: maps[0][columnCalories]?.toDouble() ?? 0.0,
-      protein: maps[0][columnProtein]?.toDouble() ?? 0.0,
-      carbs: maps[0][columnCarbs]?.toDouble() ?? 0.0,
-      fat: maps[0][columnFat]?.toDouble() ?? 0.0,
-      calculationType: calculationType,
-      timestamp:
-          maps[0][columnLastModified] != null
-              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
-              : null,
-      isDefault: maps[0][columnIsDefault] == 1,
-      name: maps[0][columnName],
-      lastModified:
-          maps[0][columnLastModified] != null
-              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
-              : null,
-    );
+    return MacroResult.fromMap(maps.first);
   }
 
-  // Update to only use userId
   Future<MacroResult?> getDefaultCalculation({
     required String userId, // Require userId
   }) async {
-    final List<Map<String, dynamic>> maps = await database.query(
-      tableName,
-      where: '$columnIsDefault = ? AND $columnUserId = ?', // Query by userId
-      whereArgs: [1, userId],
-      limit: 1,
-    );
-    /* // Old logic
-    if (userId != null) {
-      maps = await database.query(
-        tableName,
-        where: '$columnIsDefault = ? AND $columnUserId = ?',
-        whereArgs: [1, userId],
-        limit: 1,
-      );
-    } else if (firebaseUserId != null) {
-      maps = await database.query(
-        tableName,
-        where: '$columnIsDefault = ? AND $columnFirebaseUserId = ?',
-        whereArgs: [1, firebaseUserId],
-        limit: 1,
-      );
-    } else {
-      maps = await database.query(
-        tableName,
-        where: '$columnIsDefault = ?',
-        whereArgs: [1],
-        limit: 1,
-      );
+    // First check the in-memory cache
+    if (_defaultCalculationCache.containsKey(userId)) {
+      final cachedResult = _defaultCalculationCache[userId];
+
+      // Verify the cached result is valid
+      if (_isValidMacroResult(cachedResult!)) {
+        print(
+          'MacroCalculationDB: Retrieved valid default calculation from in-memory cache for user $userId',
+        );
+        print(
+          'Cached Macros: ${cachedResult.calories} kcal, ${cachedResult.protein}g protein',
+        );
+        return cachedResult;
+      } else {
+        print(
+          'MacroCalculationDB: Found invalid cached calculation with zero values, will try database',
+        );
+      }
     }
-    */
 
-    if (maps.isEmpty) return null;
+    // Try a more direct approach for critical operations
+    try {
+      // Get a fresh database instance
+      final db = await DatabaseHelper.getInstance();
 
-    // final calculationTypeString = maps[0][columnCalculationType];
-    // final calculationType = Goal.values.firstWhere(
-    //   (e) => e.toString() == calculationTypeString,
-    //   orElse: () => Goal.maintain,
-    // );
-    final calculationType = maps[0][columnCalculationType];
+      // Try the operation directly
+      final List<Map<String, dynamic>> maps = await db.query(
+        tableName,
+        where:
+            '$columnUserId = ? AND $columnIsDefault = ?', // Query by userId and isDefault
+        whereArgs: [userId, 1],
+        limit: 1, // Limit to 1 result
+      );
 
-    return MacroResult(
-      id: maps[0][columnId],
-      calories: maps[0][columnCalories]?.toDouble() ?? 0.0,
-      protein: maps[0][columnProtein]?.toDouble() ?? 0.0,
-      carbs: maps[0][columnCarbs]?.toDouble() ?? 0.0,
-      fat: maps[0][columnFat]?.toDouble() ?? 0.0,
-      calculationType: calculationType,
-      timestamp:
-          maps[0][columnLastModified] != null
-              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
-              : null,
-      isDefault: maps[0][columnIsDefault] == 1,
-      name: maps[0][columnName],
-      lastModified:
-          maps[0][columnLastModified] != null
-              ? DateTime.fromMillisecondsSinceEpoch(maps[0][columnLastModified])
-              : null,
-    );
+      if (maps.isEmpty) {
+        print(
+          'MacroCalculationDB: No default calculation found for user $userId',
+        );
+        return null;
+      }
+
+      final result = MacroResult.fromMap(maps.first);
+
+      // Only update the cache if the result is valid
+      if (_isValidMacroResult(result)) {
+        // Update the cache
+        _defaultCalculationCache[userId] = result;
+        print(
+          'MacroCalculationDB: Found valid default calculation for user $userId (direct)',
+        );
+      } else {
+        print(
+          'MacroCalculationDB: Found invalid default calculation with zero values for user $userId',
+        );
+      }
+
+      return result;
+    } catch (e) {
+      print('Direct getDefaultCalculation failed: $e');
+
+      // If direct approach fails, try to force recreate the database
+      try {
+        await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+        final db = await DatabaseHelper.getInstance();
+
+        // Try the operation again with the fresh database
+        final List<Map<String, dynamic>> maps = await db.query(
+          tableName,
+          where:
+              '$columnUserId = ? AND $columnIsDefault = ?', // Query by userId and isDefault
+          whereArgs: [userId, 1],
+          limit: 1, // Limit to 1 result
+        );
+
+        if (maps.isEmpty) {
+          print(
+            'MacroCalculationDB: No default calculation found for user $userId',
+          );
+          return null;
+        }
+
+        final result = MacroResult.fromMap(maps.first);
+
+        // Only update the cache if the result is valid
+        if (_isValidMacroResult(result)) {
+          // Update the cache
+          _defaultCalculationCache[userId] = result;
+          print(
+            'MacroCalculationDB: Found valid default calculation for user $userId (after recreation)',
+          );
+        } else {
+          print(
+            'MacroCalculationDB: Found invalid default calculation with zero values for user $userId',
+          );
+        }
+
+        return result;
+      } catch (e2) {
+        print(
+          'getDefaultCalculation failed even after database recreation: $e2',
+        );
+
+        // If we have a cached value, return it as a fallback
+        if (_defaultCalculationCache.containsKey(userId)) {
+          print(
+            'MacroCalculationDB: Returning cached default calculation as fallback for user $userId',
+          );
+          return _defaultCalculationCache[userId];
+        }
+
+        return null; // Return null instead of throwing to avoid app crashes
+      }
+    }
   }
 
-  // Update to only use userId
-  Future<void> setDefaultCalculation(
-    String id, {
+  Future<bool> setDefaultCalculation({
+    required String id,
     required String userId, // Require userId
   }) async {
     // First, unset all defaults for this user
-    await database.update(
-      tableName,
-      {
-        columnIsDefault: 0,
-        columnLastModified: DateTime.now().millisecondsSinceEpoch,
-      },
-      where: '$columnUserId = ?', // Filter by userId
-      whereArgs: [userId],
-    );
-    /* // Old logic
-    if (userId != null) {
-      await database.update(
+    await executeWithRecovery(
+      (db) => db.update(
         tableName,
         {
           columnIsDefault: 0,
           columnLastModified: DateTime.now().millisecondsSinceEpoch,
         },
-        where: '$columnUserId = ?',
+        where: '$columnUserId = ?', // Filter by userId
         whereArgs: [userId],
-      );
-    } else if (firebaseUserId != null) {
-      await database.update(
-        tableName,
-        {
-          columnIsDefault: 0,
-          columnLastModified: DateTime.now().millisecondsSinceEpoch,
-        },
-        where: '$columnFirebaseUserId = ?',
-        whereArgs: [firebaseUserId],
-      );
-    } else {
-      await database.update(tableName, {
-        columnIsDefault: 0,
-        columnLastModified: DateTime.now().millisecondsSinceEpoch,
-      });
-    }
-    */
+      ),
+    );
 
     // Then set the new default
-    await database.update(
-      tableName,
-      {
-        columnIsDefault: 1,
-        columnLastModified: DateTime.now().millisecondsSinceEpoch,
-      },
-      where: '$columnId = ?', // Set by primary key
-      whereArgs: [id],
+    await executeWithRecovery(
+      (db) => db.update(
+        tableName,
+        {
+          columnIsDefault: 1,
+          columnLastModified: DateTime.now().millisecondsSinceEpoch,
+        },
+        where: '$columnId = ?', // Set by primary key
+        whereArgs: [id],
+      ),
     );
     print(
       'MacroCalculationDB: Set calculation $id as default for user $userId',
     );
+
+    // Update the in-memory cache
+    final calculation = await getCalculationById(id);
+    if (calculation != null) {
+      _defaultCalculationCache[userId] = calculation;
+    }
+
+    return true;
   }
 
   Future<int> deleteCalculation(String id) async {
     print('MacroCalculationDB: Deleting calculation $id');
-    return await database.delete(
-      tableName,
-      where: '$columnId = ?',
-      whereArgs: [id],
+    return await executeWithRecovery(
+      (db) => db.delete(tableName, where: '$columnId = ?', whereArgs: [id]),
     );
   }
 }
