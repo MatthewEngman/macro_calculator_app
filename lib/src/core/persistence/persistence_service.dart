@@ -2,10 +2,16 @@ import 'package:sqflite/sqflite.dart';
 import 'database_helper.dart'; // Import the helper
 
 class PersistenceService {
-  final Database database; // Changed from SharedPreferences
+  // Remove direct database reference and use dynamic retrieval instead
   bool _initialized = false;
 
-  PersistenceService(this.database); // Constructor accepts Database
+  // Constructor no longer needs to accept a database
+  PersistenceService();
+
+  // Get the current database instance dynamically
+  Future<Database> _getDatabase() async {
+    return await DatabaseHelper.getInstance();
+  }
 
   // Initialize method to ensure settings table exists
   Future<void> initialize() async {
@@ -13,14 +19,15 @@ class PersistenceService {
 
     try {
       print('PersistenceService: Checking if settings table exists...');
-      final tables = await database.rawQuery(
+      final db = await _getDatabase();
+      final tables = await db.rawQuery(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='${DatabaseHelper.tableSettings}'",
       );
       print('PersistenceService: Table query result: $tables');
 
       if (tables.isEmpty) {
         print('PersistenceService: Creating settings table...');
-        await database.execute('''
+        await db.execute('''
         CREATE TABLE ${DatabaseHelper.tableSettings} (
           ${DatabaseHelper.columnKey} TEXT PRIMARY KEY,
           ${DatabaseHelper.columnValue} TEXT NOT NULL
@@ -41,8 +48,9 @@ class PersistenceService {
   // Save data using INSERT OR REPLACE
   Future<void> saveData(String key, String value) async {
     await initialize();
+    final db = await _getDatabase();
 
-    await database.insert(
+    await db.insert(
       DatabaseHelper.tableSettings,
       {DatabaseHelper.columnKey: key, DatabaseHelper.columnValue: value},
       conflictAlgorithm:
@@ -53,8 +61,9 @@ class PersistenceService {
   // Get data using SELECT WHERE
   Future<String?> getData(String key) async {
     await initialize();
+    final db = await _getDatabase();
 
-    final List<Map<String, dynamic>> maps = await database.query(
+    final List<Map<String, dynamic>> maps = await db.query(
       DatabaseHelper.tableSettings,
       columns: [DatabaseHelper.columnValue],
       where: '${DatabaseHelper.columnKey} = ?',

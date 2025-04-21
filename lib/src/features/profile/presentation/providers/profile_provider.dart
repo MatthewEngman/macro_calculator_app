@@ -16,11 +16,26 @@ final macroListProvider = FutureProvider<List<MacroResult>>((ref) async {
 
 final defaultMacroProvider = FutureProvider<MacroResult?>((ref) async {
   final onboardingComplete = ref.watch(onboardingCompleteProvider);
-  if (!onboardingComplete) return null;
+  if (!onboardingComplete) {
+    print('Default Macro Provider: Onboarding not complete, returning null');
+    return null;
+  }
+  
+  print('Default Macro Provider: Getting repository...');
   final repository = await ref.watch(
     persistence.profileRepositorySyncProvider.future,
   );
-  return await repository.getDefaultMacro();
+  
+  print('Default Macro Provider: Retrieving default macro...');
+  final defaultMacro = await repository.getDefaultMacro();
+  
+  if (defaultMacro != null) {
+    print('Default Macro Provider: Found default macro with ID: ${defaultMacro.id}');
+  } else {
+    print('Default Macro Provider: No default macro found');
+  }
+  
+  return defaultMacro;
 });
 
 final profileProvider =

@@ -1,8 +1,6 @@
 // lib/src/features/meal_plan/data/repositories/meal_plan_repository_sqlite_impl.dart
 
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-// Correct the package name in the import paths
-import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import '../../models/meal_plan.dart';
 import '../meal_plan_db.dart'; // Keep this import
@@ -10,7 +8,6 @@ import '../meal_plan_db.dart'; // Keep this import
 // import 'package:uuid/uuid.dart';
 
 class MealPlanRepositorySQLiteImpl {
-  final LocalStorageService _localStorageService;
   final MealPlanDB _mealPlanDB; // Add MealPlanDB instance
   final UserDB _userDB;
   String? _firebaseUserId;
@@ -18,7 +15,6 @@ class MealPlanRepositorySQLiteImpl {
 
   // Update constructor to accept MealPlanDB
   MealPlanRepositorySQLiteImpl(
-    this._localStorageService,
     this._mealPlanDB,
     this._userDB, // <<< Ensure this parameter is present
   ) {

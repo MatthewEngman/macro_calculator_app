@@ -66,7 +66,7 @@ class DashboardScreen extends ConsumerWidget {
                         if (userInfo != null)
                           _buildUserInfoCard(context, userInfo),
                         const SizedBox(height: 24),
-                        _buildDefaultMacroCard(context, defaultMacroAsync),
+                        _buildDefaultMacroCard(context, defaultMacroAsync, ref),
                         const SizedBox(height: 24),
                         _buildFeatureCards(context),
                       ],
@@ -199,9 +199,20 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildDefaultMacroCard(
     BuildContext context,
     AsyncValue<MacroResult?> defaultMacroAsync,
+    ref,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    // Add debug information about the current state
+    print(
+      'Dashboard: defaultMacroAsync state: ${defaultMacroAsync.runtimeType}',
+    );
+    if (defaultMacroAsync is AsyncError) {
+      print(
+        'Dashboard: defaultMacroAsync error: ${(defaultMacroAsync as AsyncError).error}',
+      );
+    }
 
     return Card(
       elevation: 4,
@@ -248,9 +259,56 @@ class DashboardScreen extends ConsumerWidget {
                   );
                 }
 
+                // Check if the macro result has valid values
+                if (macroResult.calories <= 0 || macroResult.protein <= 0) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Incomplete macro calculation data',
+                          textAlign: TextAlign.center,
+                          style: textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Navigate to calculator to create a new calculation
+                            context.push('/calculator');
+                          },
+                          child: const Text('Create New Calculation'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Add calculation name if available
+                    if (macroResult.name != null &&
+                        macroResult.name!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Text(
+                          macroResult.name!,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    // Add calculation type if available
+                    if (macroResult.calculationType != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: Text(
+                          _getCalculationTypeText(macroResult.calculationType),
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                      ),
                     _buildMacroRow(
                       context,
                       'Calories',
@@ -274,20 +332,76 @@ class DashboardScreen extends ConsumerWidget {
                       'Fat',
                       '${macroResult.fat.round()} g',
                     ),
+                    // Add a button to recalculate
+                    const SizedBox(height: 16),
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          context.push('/calculator');
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Recalculate'),
+                      ),
+                    ),
                   ],
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),
-              error:
-                  (error, stackTrace) => Text(
-                    'Error loading macro calculation: $error',
-                    textAlign: TextAlign.center,
+              error: (error, stackTrace) {
+                // Log the error for debugging
+                print('Error loading macro calculation: $error');
+                print('Stack trace: $stackTrace');
+
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Error loading macro calculation',
+                        textAlign: TextAlign.center,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () {
+                          ref.refresh(defaultMacroProvider);
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  // Helper method to convert calculation type to user-friendly text
+  String _getCalculationTypeText(String? calculationType) {
+    if (calculationType == null) return 'Standard Calculation';
+
+    switch (calculationType) {
+      case 'Goal.lose':
+        return 'Weight Loss Plan';
+      case 'Goal.maintain':
+        return 'Maintenance Plan';
+      case 'Goal.gain':
+        return 'Muscle Gain Plan';
+      case 'default_fallback':
+        return 'Default Recommendation';
+      case 'error_fallback':
+        return 'Recommended Values';
+      default:
+        if (calculationType.startsWith('Goal.')) {
+          return '${calculationType.substring(5)} Plan';
+        }
+        return calculationType;
+    }
   }
 
   Widget _buildMacroRow(BuildContext context, String label, String value) {

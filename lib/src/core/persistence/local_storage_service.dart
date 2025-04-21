@@ -8,24 +8,75 @@ import 'database_helper.dart'; // Import DatabaseHelper for table/column names
 /// LocalStorageService acts as a bridge between FirestoreSyncService and local storage (SQLite)
 /// It handles all local storage operations and sync queue persistence
 class LocalStorageService {
-  // Change to accept Database directly
-  final Database database;
   final UserDB userDB; // Add UserDB instance
 
   // Keys for storing data in the settings table
   static const String _syncQueueKey = 'sync_queue';
   static const String _lastSyncTimeKey = 'last_sync_time';
 
-  // Update constructor to accept UserDB
-  LocalStorageService(this.userDB, this.database) {
+  // Update constructor to accept only UserDB
+  LocalStorageService(this.userDB) {
     print('[DIAG] LocalStorageService constructed');
     try {
       print('[DIAG] userDB: $userDB');
-      print('[DIAG] Underlying DB hash: ${database.hashCode}');
-      print('[DIAG] Underlying DB path: ${database.path}');
     } catch (e) {
-      print('[DIAG] Could not get database path: $e');
+      print('[DIAG] Error in constructor: $e');
     }
+  }
+
+  /// Generic method to execute database operations with automatic recovery
+  /// This handles both read-only errors and database closure errors
+  Future<T> executeWithRecovery<T>(
+    Future<T> Function(Database db) operation,
+  ) async {
+    int retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      try {
+        // Always get the latest database instance
+        final db = await DatabaseHelper.getInstance();
+        return await operation(db);
+      } catch (e) {
+        final errorMsg = e.toString().toLowerCase();
+        print('Database error in executeWithRecovery: $e');
+
+        if (errorMsg.contains('read-only') ||
+            errorMsg.contains('database_closed') ||
+            errorMsg.contains('database is closed')) {
+          print(
+            'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
+          );
+
+          try {
+            // Get a fresh database instance with recovery if needed
+            // Use force recreation on the last retry attempt
+            final forceRecreate = retryCount >= maxRetries - 1;
+            await DatabaseHelper.verifyDatabaseWritable(
+              forceRecreate: forceRecreate,
+            );
+            retryCount++;
+
+            // Small delay before retry to allow system to stabilize
+            await Future.delayed(Duration(milliseconds: 300));
+            continue; // Retry the operation with the recovered database
+          } catch (recoveryError) {
+            print('Recovery attempt failed: $recoveryError');
+            if (retryCount >= maxRetries - 1) {
+              throw Exception(
+                'Database recovery failed after $maxRetries attempts: $e',
+              );
+            }
+          }
+        } else {
+          // For other errors, just rethrow
+          rethrow;
+        }
+      }
+      retryCount++;
+    }
+
+    throw Exception('Database operation failed after $maxRetries attempts');
   }
 
   // User Info methods (These already use UserDB static methods, no change needed here)
@@ -59,11 +110,6 @@ class LocalStorageService {
 
   Future<void> saveUserInfo(String userId, UserInfo userInfo) async {
     // No change needed in implementation, but added error check
-    print('[DIAG] saveUserInfo using DB hash: ${database.hashCode}');
-    try {
-      print('[DIAG] DB path: ${database.path}');
-    } catch (_) {}
-    // ...rest of your method...
     try {
       final userInfoWithId =
           userInfo.id == null
@@ -93,11 +139,6 @@ class LocalStorageService {
   }
 
   Future<void> deleteUserInfo(String userId, String id) async {
-    print('[DIAG] deleteUserInfo using DB hash: ${database.hashCode}');
-    try {
-      print('[DIAG] DB path: ${database.path}');
-    } catch (_) {}
-    // No change needed
     try {
       final rowsDeleted = await userDB.deleteUser(id);
       if (rowsDeleted > 0) {
@@ -192,88 +233,146 @@ class LocalStorageService {
     }
   }
 
-  // Sync queue methods - REWRITTEN to use Database directly
+  // Sync queue methods - REWRITTEN to use DatabaseHelper.getInstance()
   Future<List<Map<String, dynamic>>?> getSyncQueue() async {
-    print('[DIAG] getSyncQueue using DB hash: ${database.hashCode}');
-    try {
-      print('[DIAG] DB path: ${database.path}');
-    } catch (_) {}
-    try {
-      final List<Map<String, dynamic>> maps = await database.query(
-        DatabaseHelper.tableSettings,
-        columns: [DatabaseHelper.columnValue],
-        where: '${DatabaseHelper.columnKey} = ?',
-        whereArgs: [_syncQueueKey],
-      );
-      if (maps.isNotEmpty) {
-        final queueJson = maps.first[DatabaseHelper.columnValue] as String?;
-        if (queueJson == null) return [];
-        final List<dynamic> decodedList = jsonDecode(queueJson);
-        return decodedList.cast<Map<String, dynamic>>();
-      } else {
-        return [];
+    return await executeWithRecovery((db) async {
+      print('[DIAG] getSyncQueue starting with DB hash: ${db.hashCode}');
+      try {
+        print('[DIAG] DB path: ${db.path}');
+        print(
+          '[DIAG] About to execute query operation in getSyncQueue on DB hash: ${db.hashCode}',
+        );
+        final List<Map<String, dynamic>> maps = await db.query(
+          DatabaseHelper.tableSettings,
+          columns: [DatabaseHelper.columnValue],
+          where: '${DatabaseHelper.columnKey} = ?',
+          whereArgs: [_syncQueueKey],
+        );
+        print(
+          '[DIAG] Query operation completed successfully in getSyncQueue on DB hash: ${db.hashCode}',
+        );
+
+        if (maps.isNotEmpty) {
+          final queueJson = maps.first[DatabaseHelper.columnValue] as String?;
+          if (queueJson == null) return [];
+          final List<dynamic> decodedList = jsonDecode(queueJson);
+          return decodedList.cast<Map<String, dynamic>>();
+        } else {
+          return [];
+        }
+      } catch (e) {
+        print(
+          '[DIAG] Query operation failed in getSyncQueue on DB hash: ${db.hashCode} with error: $e',
+        );
+        print('Error getting sync queue directly from DB: $e');
+        if (e.toString().contains('read-only')) {
+          rethrow; // Propagate the specific error
+        }
+        return []; // Return empty list on error
       }
-    } catch (e) {
-      print('Error getting sync queue directly from DB: $e');
-      if (e.toString().contains('read-only')) {
-        rethrow; // Propagate the specific error
-      }
-      return []; // Return empty list on error
-    }
+    });
   }
 
   Future<void> setSyncQueue(List<Map<String, dynamic>> queue) async {
-    try {
-      final queueJson = jsonEncode(queue);
-      await database.insert(DatabaseHelper.tableSettings, {
-        DatabaseHelper.columnKey: _syncQueueKey,
-        DatabaseHelper.columnValue: queueJson,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    } catch (e) {
-      print('Error setting sync queue directly in DB: $e');
-      if (e.toString().contains('read-only')) {
-        rethrow; // Propagate the specific error
+    await executeWithRecovery((db) async {
+      print('[DIAG] setSyncQueue starting with DB hash: ${db.hashCode}');
+      try {
+        print('[DIAG] DB path: ${db.path}');
+        final queueJson = jsonEncode(queue);
+        print(
+          '[DIAG] About to execute insert operation in setSyncQueue on DB hash: ${db.hashCode}',
+        );
+        await db.insert(
+          DatabaseHelper.tableSettings,
+          {
+            DatabaseHelper.columnKey: _syncQueueKey,
+            DatabaseHelper.columnValue: queueJson,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        print(
+          '[DIAG] Insert operation completed successfully in setSyncQueue on DB hash: ${db.hashCode}',
+        );
+      } catch (e) {
+        print(
+          '[DIAG] Insert operation failed in setSyncQueue on DB hash: ${db.hashCode} with error: $e',
+        );
+        print('Error setting sync queue directly in DB: $e');
+        if (e.toString().contains('read-only')) {
+          rethrow; // Propagate the specific error
+        }
       }
-    }
+    });
   }
 
   Future<void> setLastSyncTime(DateTime time) async {
-    try {
-      final timeString = time.millisecondsSinceEpoch.toString();
-      await database.insert(DatabaseHelper.tableSettings, {
-        DatabaseHelper.columnKey: _lastSyncTimeKey,
-        DatabaseHelper.columnValue: timeString,
-      }, conflictAlgorithm: ConflictAlgorithm.replace);
-    } catch (e) {
-      print('Error setting last sync time directly in DB: $e');
-      if (e.toString().contains('read-only')) {
-        rethrow; // Propagate the specific error
+    await executeWithRecovery((db) async {
+      print('[DIAG] setLastSyncTime starting with DB hash: ${db.hashCode}');
+      try {
+        print('[DIAG] DB path: ${db.path}');
+        final timeString = time.millisecondsSinceEpoch.toString();
+        print(
+          '[DIAG] About to execute insert operation in setLastSyncTime on DB hash: ${db.hashCode}',
+        );
+        await db.insert(
+          DatabaseHelper.tableSettings,
+          {
+            DatabaseHelper.columnKey: _lastSyncTimeKey,
+            DatabaseHelper.columnValue: timeString,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        print(
+          '[DIAG] Insert operation completed successfully in setLastSyncTime on DB hash: ${db.hashCode}',
+        );
+      } catch (e) {
+        print(
+          '[DIAG] Insert operation failed in setLastSyncTime on DB hash: ${db.hashCode} with error: $e',
+        );
+        print('Error setting last sync time directly in DB: $e');
+        if (e.toString().contains('read-only')) {
+          rethrow; // Propagate the specific error
+        }
       }
-    }
+    });
   }
 
   Future<DateTime?> getLastSyncTime() async {
-    try {
-      final List<Map<String, dynamic>> maps = await database.query(
-        DatabaseHelper.tableSettings,
-        columns: [DatabaseHelper.columnValue],
-        where: '${DatabaseHelper.columnKey} = ?',
-        whereArgs: [_lastSyncTimeKey],
-      );
-      if (maps.isNotEmpty) {
-        final timeString = maps.first[DatabaseHelper.columnValue] as String?;
-        if (timeString == null) return null;
-        final timestamp = int.parse(timeString);
-        return DateTime.fromMillisecondsSinceEpoch(timestamp);
-      } else {
+    return await executeWithRecovery((db) async {
+      print('[DIAG] getLastSyncTime starting with DB hash: ${db.hashCode}');
+      try {
+        print('[DIAG] DB path: ${db.path}');
+        print(
+          '[DIAG] About to execute query operation in getLastSyncTime on DB hash: ${db.hashCode}',
+        );
+        final List<Map<String, dynamic>> maps = await db.query(
+          DatabaseHelper.tableSettings,
+          columns: [DatabaseHelper.columnValue],
+          where: '${DatabaseHelper.columnKey} = ?',
+          whereArgs: [_lastSyncTimeKey],
+        );
+        print(
+          '[DIAG] Query operation completed successfully in getLastSyncTime on DB hash: ${db.hashCode}',
+        );
+
+        if (maps.isNotEmpty) {
+          final timeString = maps.first[DatabaseHelper.columnValue] as String?;
+          if (timeString == null) return null;
+          final timestamp = int.parse(timeString);
+          return DateTime.fromMillisecondsSinceEpoch(timestamp);
+        } else {
+          return null;
+        }
+      } catch (e) {
+        print(
+          '[DIAG] Query operation failed in getLastSyncTime on DB hash: ${db.hashCode} with error: $e',
+        );
+        print('Error getting last sync time directly from DB: $e');
+        if (e.toString().contains('read-only')) {
+          rethrow; // Propagate the specific error
+        }
         return null;
       }
-    } catch (e) {
-      print('Error getting last sync time directly from DB: $e');
-      if (e.toString().contains('read-only')) {
-        rethrow; // Propagate the specific error
-      }
-      return null;
-    }
+    });
   }
 }
