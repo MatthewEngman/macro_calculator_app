@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_provider.dart';
@@ -53,7 +54,51 @@ class _AccountUpgradeScreenState extends ConsumerState<AccountUpgradeScreen> {
         // Navigate back to the profile screen
         Navigator.of(context).pop();
       }
+    } on FirebaseAuthException catch (e) {
+      // Handle specific Firebase Auth errors
+      if (e.code == 'credential-already-in-use') {
+        setState(() {
+          _errorMessage =
+              'This Google account is already registered. Your data will be migrated to the existing account.';
+        });
+
+        if (mounted) {
+          // Show a more informative message for this specific error
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_errorMessage!, textAlign: TextAlign.center),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              behavior: SnackBarBehavior.floating,
+              width: 300,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+
+          // Short delay before navigating back
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      } else {
+        // Handle other Firebase Auth errors
+        setState(() {
+          _errorMessage = 'Account upgrade failed: ${e.message}';
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_errorMessage!, textAlign: TextAlign.center),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              behavior: SnackBarBehavior.floating,
+              width: 280,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     } catch (e) {
+      // Handle general errors
       setState(() {
         _errorMessage = 'Account upgrade failed: ${e.toString()}';
       });

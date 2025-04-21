@@ -70,6 +70,9 @@ class AuthRepositoryImpl implements AuthRepository {
         );
       }
 
+      // Store the anonymous user ID for potential data migration
+      final String anonymousUserId = user.uid;
+
       // Trigger the Google authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
@@ -88,8 +91,34 @@ class AuthRepositoryImpl implements AuthRepository {
         idToken: googleAuth.idToken,
       );
 
-      // Link the anonymous account with the Google credential
-      return await user.linkWithCredential(credential);
+      try {
+        // Try to link the anonymous account with the Google credential
+        return await user.linkWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        // Handle the case where the credential is already associated with a different account
+        if (e.code == 'credential-already-in-use') {
+          print('Credential already in use, signing in with existing account');
+
+          // Sign out the anonymous user
+          await _firebaseAuth.signOut();
+
+          // Sign in with the existing Google account
+          final userCredential = await _firebaseAuth.signInWithCredential(
+            credential,
+          );
+
+          // Trigger data migration between the accounts
+          // This will be handled by the authStateListenerProvider
+          print(
+            'Migrating data from anonymous account: $anonymousUserId to Google account: ${userCredential.user?.uid}',
+          );
+
+          return userCredential;
+        } else {
+          // For other errors, rethrow
+          rethrow;
+        }
+      }
     } catch (e) {
       print('Error linking anonymous account with Google: $e');
       rethrow;
