@@ -1,8 +1,6 @@
 // lib/src/core/persistence/repository_providers.dart
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:macro_masher/src/core/persistence/database_provider.dart'
-    as db_provider_impl;
 import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';

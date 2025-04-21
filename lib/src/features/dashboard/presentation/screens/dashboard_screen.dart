@@ -6,6 +6,7 @@ import '../../../profile/domain/entities/user_info.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
 import '../../../calculator/domain/entities/macro_result.dart';
+import '../../../../core/persistence/repository_providers.dart' as persistence;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -16,6 +17,27 @@ class DashboardScreen extends ConsumerWidget {
     final defaultMacroAsync = ref.watch(defaultMacroProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+
+    // Add more comprehensive debugging for defaultMacroProvider state
+    print(
+      'Dashboard build: defaultMacroProvider state: ${defaultMacroAsync.runtimeType}',
+    );
+
+    // Check authentication state
+    final auth = ref.read(persistence.firebaseAuthProvider);
+    final currentUser = auth.currentUser;
+    print(
+      'Dashboard build: Current user: ${currentUser?.uid} (isAnonymous: ${currentUser?.isAnonymous})',
+    );
+
+    if (defaultMacroAsync is AsyncError) {
+      print(
+        'Dashboard build: defaultMacroProvider error: ${(defaultMacroAsync as AsyncError).error}',
+      );
+      print(
+        'Dashboard build: defaultMacroProvider stack trace: ${(defaultMacroAsync as AsyncError).stackTrace}',
+      );
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -212,6 +234,9 @@ class DashboardScreen extends ConsumerWidget {
       print(
         'Dashboard: defaultMacroAsync error: ${(defaultMacroAsync as AsyncError).error}',
       );
+      print(
+        'Dashboard: defaultMacroAsync stack trace: ${(defaultMacroAsync as AsyncError).stackTrace}',
+      );
     }
 
     return Card(
@@ -233,10 +258,39 @@ class DashboardScreen extends ConsumerWidget {
             defaultMacroAsync.when(
               data: (macroResult) {
                 if (macroResult == null) {
-                  return const Center(
-                    child: Text(
-                      'No default macro calculation found.\nCreate one in the calculator.',
-                      textAlign: TextAlign.center,
+                  print(
+                    'Dashboard: macroResult is null, attempting manual refresh',
+                  );
+
+                  // Try to manually refresh the provider after a short delay
+                  Future.delayed(Duration(milliseconds: 500), () {
+                    ref.refresh(defaultMacroProvider);
+                  });
+
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'No default macro calculation found.\nCreate one in the calculator.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            context.push('/calculator');
+                          },
+                          child: const Text('Create Calculation'),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () {
+                            // Force refresh the provider
+                            ref.refresh(defaultMacroProvider);
+                          },
+                          child: const Text('Refresh Data'),
+                        ),
+                      ],
                     ),
                   );
                 }
@@ -352,6 +406,11 @@ class DashboardScreen extends ConsumerWidget {
                 print('Error loading macro calculation: $error');
                 print('Stack trace: $stackTrace');
 
+                // Try to manually refresh the provider after a short delay
+                Future.delayed(Duration(milliseconds: 500), () {
+                  ref.refresh(defaultMacroProvider);
+                });
+
                 return Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -364,11 +423,26 @@ class DashboardScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      Text(
+                        'Error details: $error',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.error,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       ElevatedButton(
                         onPressed: () {
                           ref.refresh(defaultMacroProvider);
                         },
                         child: const Text('Retry'),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton(
+                        onPressed: () {
+                          context.push('/calculator');
+                        },
+                        child: const Text('Create New Calculation'),
                       ),
                     ],
                   ),

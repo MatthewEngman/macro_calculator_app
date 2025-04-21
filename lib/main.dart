@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 import 'dart:io';
 import 'package:path/path.dart';
@@ -20,6 +19,8 @@ import 'src/core/persistence/database_provider.dart' as db_provider_impl;
 import 'package:macro_masher/src/core/persistence/repository_providers.dart'
     as repo_providers;
 import 'package:macro_masher/src/features/calculator/data/repositories/macro_calculation_db.dart';
+import 'package:macro_masher/src/features/auth/presentation/providers/auth_provider.dart'
+    as auth_provider;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -222,7 +223,7 @@ Future<void> main() async {
       print('Database successfully initialized through DatabaseHelper');
     } catch (e) {
       print('Error initializing database: $e');
-      throw e; // Rethrow to abort app initialization
+      rethrow; // Rethrow to abort app initialization
     }
 
     // Initialize SharedPreferences
@@ -244,6 +245,9 @@ Future<void> main() async {
         repo_providers.firestoreSyncServiceProvider,
       ],
     );
+
+    // Initialize the auth state listener to handle onboarding
+    container.read(auth_provider.authStateListenerProvider);
 
     // Start listening to auth changes to potentially trigger sync
     // container.read(repo_providers.dataSyncManagerProvider).listenToAuthChanges(); // Uncomment if used

@@ -115,17 +115,19 @@ class MealPlanDB {
         final dbPath = db.path;
         print('[DIAG] About to execute insert operation on DB hash: $dbHash');
         print('[DIAG] DB path: $dbPath');
-        
+
         await db.insert(
           tableName,
           mealPlanMap,
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        
-        print('[DIAG] Insert operation completed successfully on DB hash: $dbHash');
+
+        print(
+          '[DIAG] Insert operation completed successfully on DB hash: $dbHash',
+        );
         return true;
       });
-      
+
       print('MealPlanDB: Successfully inserted meal plan with ID: $id');
       return id;
     } on Exception catch (e) {
@@ -174,13 +176,15 @@ class MealPlanDB {
       final db = await DatabaseHelper.getInstance();
       final dbHash = db.hashCode;
       final dbPath = db.path;
-      print('[DIAG] Starting transaction in updateMealPlan on DB hash: $dbHash');
+      print(
+        '[DIAG] Starting transaction in updateMealPlan on DB hash: $dbHash',
+      );
       print('[DIAG] DB path: $dbPath');
-      
+
       rowsAffected = await executeWithRecovery((db) async {
         print('[DIAG] Updating meal plan on DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
-        
+
         return await db.update(
           tableName,
           mealPlanMap,
@@ -188,14 +192,18 @@ class MealPlanDB {
           whereArgs: [plan.id],
         );
       });
-      print('[DIAG] Transaction completed successfully in updateMealPlan on DB hash: $dbHash');
-      
+      print(
+        '[DIAG] Transaction completed successfully in updateMealPlan on DB hash: $dbHash',
+      );
+
       print(
         'MealPlanDB: Updated meal plan ${plan.id}. Rows affected: $rowsAffected',
       );
       return rowsAffected > 0;
     } on Exception catch (e) {
-      print('[DIAG] Transaction failed in updateMealPlan on DB hash: ${await DatabaseHelper.getInstance().hashCode} with error: $e');
+      print(
+        '[DIAG] Transaction failed in updateMealPlan on DB hash: ${DatabaseHelper.getInstance().hashCode} with error: $e',
+      );
       print('MealPlanDB: Error updating meal plan: $e');
       rethrow;
     }
@@ -208,11 +216,13 @@ class MealPlanDB {
       final dbPath = db.path;
       print('[DIAG] getAllPlansForUser starting with DB hash: $dbHash');
       print('[DIAG] DB path: $dbPath');
-      
-      final List<Map<String, dynamic>> maps = await executeWithRecovery((db) async {
+
+      final List<Map<String, dynamic>> maps = await executeWithRecovery((
+        db,
+      ) async {
         print('[DIAG] Getting all plans for user on DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
-        
+
         return await db.query(
           tableName,
           where: '$columnUserId = ?',
@@ -220,8 +230,10 @@ class MealPlanDB {
           orderBy: '$columnCreatedAt DESC',
         );
       });
-      print('[DIAG] Query completed successfully in getAllPlansForUser on DB hash: $dbHash');
-      
+      print(
+        '[DIAG] Query completed successfully in getAllPlansForUser on DB hash: $dbHash',
+      );
+
       if (maps.isEmpty) return [];
 
       return List.generate(maps.length, (i) {
@@ -240,11 +252,13 @@ class MealPlanDB {
       final dbPath = db.path;
       print('[DIAG] getAllPlans starting with DB hash: $dbHash');
       print('[DIAG] DB path: $dbPath');
-      
-      final List<Map<String, dynamic>> maps = await executeWithRecovery((db) async {
+
+      final List<Map<String, dynamic>> maps = await executeWithRecovery((
+        db,
+      ) async {
         print('[DIAG] Getting all plans on DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
-        
+
         return await db.query(
           tableName,
           where: userId != null ? '$columnUserId = ?' : null,
@@ -252,7 +266,9 @@ class MealPlanDB {
           orderBy: '$columnCreatedAt DESC',
         );
       });
-      print('[DIAG] Query completed successfully in getAllPlans on DB hash: $dbHash');
+      print(
+        '[DIAG] Query completed successfully in getAllPlans on DB hash: $dbHash',
+      );
 
       if (maps.isEmpty) return [];
 
@@ -272,18 +288,22 @@ class MealPlanDB {
       final dbPath = db.path;
       print('[DIAG] getMealPlanById starting with DB hash: $dbHash');
       print('[DIAG] DB path: $dbPath');
-      
-      final List<Map<String, dynamic>> maps = await executeWithRecovery((db) async {
+
+      final List<Map<String, dynamic>> maps = await executeWithRecovery((
+        db,
+      ) async {
         print('[DIAG] Getting meal plan by ID on DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
-        
+
         return await db.query(
           tableName,
           where: '$columnId = ?',
           whereArgs: [id],
         );
       });
-      print('[DIAG] Query completed successfully in getMealPlanById on DB hash: $dbHash');
+      print(
+        '[DIAG] Query completed successfully in getMealPlanById on DB hash: $dbHash',
+      );
 
       if (maps.isNotEmpty) {
         return MealPlan.fromMap(maps.first);
@@ -302,20 +322,24 @@ class MealPlanDB {
       final dbPath = db.path;
       print('[DIAG] deleteMealPlan starting with DB hash: $dbHash');
       print('[DIAG] DB path: $dbPath');
-      
-      print('[DIAG] Starting transaction in deleteMealPlan on DB hash: $dbHash');
+
+      print(
+        '[DIAG] Starting transaction in deleteMealPlan on DB hash: $dbHash',
+      );
       final rowsDeleted = await executeWithRecovery((db) async {
         print('[DIAG] Deleting meal plan on DB hash: ${db.hashCode}');
         print('[DIAG] DB path: ${db.path}');
-        
+
         return await db.delete(
           tableName,
           where: '$columnId = ?',
           whereArgs: [id],
         );
       });
-      print('[DIAG] Delete operation completed successfully in deleteMealPlan on DB hash: $dbHash');
-      
+      print(
+        '[DIAG] Delete operation completed successfully in deleteMealPlan on DB hash: $dbHash',
+      );
+
       return rowsDeleted;
     } on Exception catch (e) {
       print('MealPlanDB: Error deleting meal plan: $e');

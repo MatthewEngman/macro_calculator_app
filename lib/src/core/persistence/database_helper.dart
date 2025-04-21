@@ -132,7 +132,77 @@ class DatabaseHelper {
   /// Force reopen the database
   static Future<Database> reopenDatabase() async {
     await closeDatabase();
-    return await database;
+    return await getInstance();
+  }
+
+  /// Force recreate the database completely - use this as a last resort for persistent database issues
+  static Future<Database> forceRecreateDatabase() async {
+    print(
+      'Force recreate requested - implementing aggressive recovery strategy',
+    );
+    try {
+      return await _recreateDatabaseCompletely();
+    } catch (e) {
+      print('Error during forced database recreation: $e');
+      // If complete recreation fails, try one more approach with explicit deletion
+      await closeDatabase();
+
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, _databaseName);
+
+      try {
+        // Delete all related database files
+        final dbFile = File(path);
+        if (await dbFile.exists()) {
+          await dbFile.delete();
+        }
+
+        // Delete journal files too
+        final journalFile = File('$path-journal');
+        if (await journalFile.exists()) {
+          await journalFile.delete();
+        }
+
+        final shmFile = File('$path-shm');
+        if (await shmFile.exists()) {
+          await shmFile.delete();
+        }
+
+        final walFile = File('$path-wal');
+        if (await walFile.exists()) {
+          await walFile.delete();
+        }
+
+        // Open with most permissive settings
+        _database = await openDatabase(
+          path,
+          version: _databaseVersion,
+          onCreate: _onCreate,
+          onConfigure: _onConfigure,
+          singleInstance: false,
+        );
+
+        // Configure with minimal constraints
+        await _database!.execute('PRAGMA journal_mode = DELETE');
+        await _database!.execute('PRAGMA synchronous = OFF');
+        await _database!.execute('PRAGMA locking_mode = NORMAL');
+
+        // Test write capability
+        await _database!.execute(
+          'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
+        );
+        await _database!.execute(
+          'INSERT INTO _write_test_table (id) VALUES (${DateTime.now().millisecondsSinceEpoch})',
+        );
+        await _database!.execute('DROP TABLE IF EXISTS _write_test_table');
+
+        print('Database successfully recreated with minimal constraints');
+        return _database!;
+      } catch (finalError) {
+        print('All database recovery attempts failed: $finalError');
+        rethrow;
+      }
+    }
   }
 
   /// Verifies that the database is writable and attempts to recover if it's not.
@@ -207,33 +277,33 @@ class DatabaseHelper {
 
     // Create settings table
     await db.rawQuery('''
-      CREATE TABLE IF NOT EXISTS ${tableSettings} (
-        ${columnKey} TEXT PRIMARY KEY,
-        ${columnValue} TEXT,
-        ${columnLastModified} INTEGER
+      CREATE TABLE IF NOT EXISTS $tableSettings (
+        $columnKey TEXT PRIMARY KEY,
+        $columnValue TEXT,
+        $columnLastModified INTEGER
       )
     ''');
     print('DatabaseHelper: Created settings table');
 
     // Create users table
     await db.rawQuery('''
-      CREATE TABLE IF NOT EXISTS ${tableUsers} (
-        ${columnId} TEXT PRIMARY KEY,
-        ${columnFirebaseUserId} TEXT,
-        ${columnName} TEXT,
-        ${columnAge} INTEGER,
-        ${columnSex} TEXT,
-        ${columnWeight} REAL,
-        ${columnFeet} INTEGER,
-        ${columnInches} REAL,
-        ${columnActivityLevel} TEXT,
-        ${columnGoal} TEXT,
-        ${columnUnits} TEXT,
-        ${columnWeightChangeRate} REAL DEFAULT 1.0,
-        ${columnIsDefault} INTEGER DEFAULT 0,
-        ${columnCreatedAt} INTEGER,
-        ${columnUpdatedAt} INTEGER,
-        ${columnLastModified} INTEGER
+      CREATE TABLE IF NOT EXISTS $tableUsers (
+        $columnId TEXT PRIMARY KEY,
+        $columnFirebaseUserId TEXT,
+        $columnName TEXT,
+        $columnAge INTEGER,
+        $columnSex TEXT,
+        $columnWeight REAL,
+        $columnFeet INTEGER,
+        $columnInches REAL,
+        $columnActivityLevel TEXT,
+        $columnGoal TEXT,
+        $columnUnits TEXT,
+        $columnWeightChangeRate REAL DEFAULT 1.0,
+        $columnIsDefault INTEGER DEFAULT 0,
+        $columnCreatedAt INTEGER,
+        $columnUpdatedAt INTEGER,
+        $columnLastModified INTEGER
       )
     ''');
     print('DatabaseHelper: Created user table');
@@ -253,7 +323,7 @@ class DatabaseHelper {
         is_default INTEGER DEFAULT 0,
         name TEXT,
         last_modified INTEGER,
-        FOREIGN KEY (user_id) REFERENCES ${tableUsers} (${columnId}) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES $tableUsers ($columnId) ON DELETE CASCADE
       )
     ''');
     print('DatabaseHelper: Created macro_calculations table');
@@ -279,7 +349,7 @@ class DatabaseHelper {
         created_at INTEGER,
         updated_at INTEGER,
         last_modified INTEGER,
-        FOREIGN KEY (user_id) REFERENCES ${tableUsers} (${columnId}) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES $tableUsers ($columnId) ON DELETE CASCADE,
         FOREIGN KEY (meal_plan_id) REFERENCES meal_plans (id) ON DELETE CASCADE
       )
     ''');
@@ -296,7 +366,7 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       // Add weight_change_rate column to users table if upgrading from v1
       await db.rawQuery(
-        'ALTER TABLE ${tableUsers} ADD COLUMN ${columnWeightChangeRate} REAL DEFAULT 1.0',
+        'ALTER TABLE $tableUsers ADD COLUMN $columnWeightChangeRate REAL DEFAULT 1.0',
       );
       print('DatabaseHelper: Added weight_change_rate column to users table');
     }

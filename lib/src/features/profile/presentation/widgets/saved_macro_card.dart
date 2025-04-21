@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart'
+    as persistence;
 import '../../../calculator/domain/entities/macro_result.dart';
 import '../providers/profile_provider.dart';
 
@@ -14,6 +16,16 @@ class SavedMacroCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
+    // Check if macro.id is null
+    if (macro.id == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot set as default: Invalid macro ID'),
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
@@ -35,7 +47,23 @@ class SavedMacroCard extends ConsumerWidget {
           ),
     );
     if (confirmed == true) {
-      await ref.read(profileProvider.notifier).setDefaultMacro(macro.id!);
+      // Get the current user ID from Firebase
+      final auth = ref.read(persistence.firebaseAuthProvider);
+      final userId = auth.currentUser?.uid;
+
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cannot set as default: User not authenticated'),
+          ),
+        );
+        return;
+      }
+
+      // Now we can safely use macro.id! since we've checked it's not null
+      await ref
+          .read(profileProvider.notifier)
+          .setDefaultMacro(macro.id!, userId);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Default macro updated!')));

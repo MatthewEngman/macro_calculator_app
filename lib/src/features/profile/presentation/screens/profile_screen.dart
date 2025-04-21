@@ -13,7 +13,6 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isAnonymous = ref.watch(authRepositoryProvider).isUserAnonymous;
 
     return DefaultTabController(
       length: 2,
@@ -94,77 +93,102 @@ class ProfileScreen extends ConsumerWidget {
             TabBarView(
               children: [const UserInfoTab(), const _SavedResultsTab()],
             ),
-            // Show account upgrade banner for anonymous users
-            if (isAnonymous)
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: colorScheme.primary,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'You\'re using a guest account',
+            // Use a Consumer widget to ensure this part rebuilds when auth state changes
+            // Watch the authStateChangesProvider directly for more reliable updates
+            Consumer(
+              builder: (context, ref, child) {
+                // Get the latest auth state by watching the stream provider
+                final authState = ref.watch(authStateChangesProvider);
+
+                return authState.when(
+                  data: (user) {
+                    // Only show the upgrade banner for anonymous users
+                    final isAnonymous = user?.isAnonymous ?? false;
+                    if (!isAnonymous) return const SizedBox.shrink();
+
+                    return Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: colorScheme.primary,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'You\'re using a guest account',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium?.copyWith(
+                                      color: colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Your data is only stored on this device. Sign in with Google to sync your data across devices and keep it safe.',
                               style: Theme.of(
                                 context,
-                              ).textTheme.titleMedium?.copyWith(
-                                color: colorScheme.primary,
-                                fontWeight: FontWeight.bold,
+                              ).textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onPrimaryContainer,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your data is only stored on this device. Sign in with Google to sync your data across devices and keep it safe.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const AccountUpgradeScreen(),
+                            const SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (context) =>
+                                                const AccountUpgradeScreen(),
+                                      ),
+                                    )
+                                    .then((_) {
+                                      // Force refresh when returning from the upgrade screen
+                                      ref.invalidate(authStateChangesProvider);
+                                    });
+                              },
+                              icon: const Icon(Icons.upgrade),
+                              label: const Text('Upgrade Account'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: colorScheme.primary,
+                                foregroundColor: colorScheme.onPrimary,
+                                minimumSize: const Size(double.infinity, 48),
+                              ),
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.upgrade),
-                        label: const Text('Upgrade Account'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                          minimumSize: const Size(double.infinity, 48),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+            ),
           ],
         ),
       ),

@@ -18,6 +18,7 @@ class MacroResult {
   final String? name;
   final DateTime? lastModified;
   final UserInfo? sourceProfile;
+  final String? userId;
 
   MacroResult({
     this.id,
@@ -31,6 +32,7 @@ class MacroResult {
     this.name,
     this.lastModified,
     this.sourceProfile,
+    this.userId,
   });
 
   /// Returns a copy of this [MacroResult] with the given fields replaced.
@@ -45,6 +47,7 @@ class MacroResult {
     bool? isDefault,
     String? name,
     DateTime? lastModified,
+    String? userId,
   }) {
     return MacroResult(
       id: id ?? this.id,
@@ -57,6 +60,8 @@ class MacroResult {
       isDefault: isDefault ?? this.isDefault,
       name: name ?? this.name,
       lastModified: lastModified ?? this.lastModified,
+      sourceProfile: this.sourceProfile,
+      userId: userId ?? this.userId,
     );
   }
 
@@ -84,8 +89,11 @@ class MacroResult {
   ///   - Fat: 25% of calories, divided by 9 (kcal/g).
   ///   - Carbs: Remaining calories after protein and fat, divided by 4 (kcal/g).
   ///
+  /// - **UserId:** If [explicitUserId] is provided, it will be used instead of [userInfo.id].
+  ///   This ensures the calculation is properly associated with the current authenticated user.
+  ///
   /// Returns a [MacroResult] containing the calculated values.
-  static MacroResult fromUserInfo(UserInfo userInfo) {
+  static MacroResult fromUserInfo(UserInfo userInfo, {String? explicitUserId}) {
     // Validate required fields
     if (userInfo.age == null ||
         userInfo.weight == null ||
@@ -105,6 +113,7 @@ class MacroResult {
         name: userInfo.name,
         lastModified: userInfo.lastModified,
         sourceProfile: userInfo,
+        userId: explicitUserId ?? userInfo.id,
       );
     }
 
@@ -226,6 +235,7 @@ class MacroResult {
       name: userInfo.name,
       lastModified: userInfo.lastModified,
       sourceProfile: userInfo,
+      userId: explicitUserId ?? userInfo.id,
     );
   }
 
@@ -265,6 +275,7 @@ class MacroResult {
           map['last_modified'] != null
               ? DateTime.fromMillisecondsSinceEpoch(map['last_modified'])
               : null,
+      userId: map['user_id'],
     );
   }
 
@@ -284,6 +295,7 @@ class MacroResult {
       'is_default': isDefault ? 1 : 0,
       'name': name,
       'last_modified': lastModified?.millisecondsSinceEpoch ?? now,
+      'user_id': userId,
     };
   }
 }
