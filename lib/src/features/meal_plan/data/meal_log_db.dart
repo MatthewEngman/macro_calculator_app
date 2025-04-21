@@ -7,26 +7,31 @@ import 'package:macro_masher/src/features/meal_plan/models/meal_log.dart';
 /// Database helper class for MealLog operations
 class MealLogDB {
   static const String tableName = 'meal_logs';
+  static const String columnMealPlanId = 'meal_plan_id';
 
   /// Creates the meal_logs table in the database
   static Future<void> createTable(Database db) async {
-    await db.execute('''
-      CREATE TABLE IF NOT EXISTS $tableName (
-        id TEXT PRIMARY KEY,
-        firebase_user_id TEXT NOT NULL,
-        meal_name TEXT NOT NULL,
-        meal_description TEXT NOT NULL,
-        macros TEXT NOT NULL,
-        log_date TEXT NOT NULL,
-        meal_type TEXT NOT NULL,
-        created_at INTEGER NOT NULL
-      )
-    ''');
+    try {
+      await db.execute('''
+        CREATE TABLE $tableName (
+          id TEXT PRIMARY KEY,
+          firebase_user_id TEXT NOT NULL,
+          meal_name TEXT NOT NULL,
+          meal_description TEXT NOT NULL,
+          macros TEXT NOT NULL,
+          log_date TEXT NOT NULL,
+          meal_type TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        )
+      ''');
+    } catch (e) {
+      // Handle exception
+    }
   }
 
   /// Inserts a new meal log into the database
   static Future<String> insertMealLog(MealLog mealLog) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final mealLogData = mealLog.toMap();
     final id = mealLog.id ?? DateTime.now().millisecondsSinceEpoch.toString();
@@ -39,7 +44,7 @@ class MealLogDB {
 
   /// Deletes a meal log from the database
   static Future<int> deleteMealLog(String id) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     return await db.delete(tableName, where: 'id = ?', whereArgs: [id]);
   }
@@ -49,7 +54,7 @@ class MealLogDB {
     DateTime date, {
     required String firebaseUserId,
   }) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -76,7 +81,7 @@ class MealLogDB {
     DateTime endDate, {
     required String firebaseUserId,
   }) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final startOfDay = DateTime(startDate.year, startDate.month, startDate.day);
     final endOfDay = DateTime(

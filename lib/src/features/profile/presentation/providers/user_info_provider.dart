@@ -10,7 +10,7 @@ import '../../../../core/persistence/onboarding_provider.dart';
 final userInfoProvider = FutureProvider<List<UserInfo>>((ref) async {
   final onboardingComplete = ref.watch(onboardingCompleteProvider);
   if (!onboardingComplete) return [];
-  final syncService = ref.watch(firestoreSyncServiceProvider);
+  final syncService = await ref.watch(firestoreSyncServiceProvider.future);
   final authProvider = ref.watch(auth.firebaseAuthProvider);
   final userId = authProvider.currentUser?.uid;
   if (userId == null) return [];

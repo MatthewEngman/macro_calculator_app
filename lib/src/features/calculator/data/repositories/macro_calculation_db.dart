@@ -1,18 +1,12 @@
 import 'package:sqflite/sqflite.dart';
-import '../../../../core/persistence/database_helper.dart';
 import '../../domain/entities/macro_result.dart';
 
 class MacroCalculationDB {
+  final Database database;
+
+  MacroCalculationDB({required this.database});
+
   static const String tableName = 'macro_calculations';
-
-  // Add a static database field
-  static Database? _db;
-
-  // Method to set the database instance directly
-  static void setDatabase(Database db) {
-    _db = db;
-    print('MacroCalculationDB: Database instance set manually');
-  }
 
   // Column names (align with main.dart schema)
   static const String columnId = 'id';
@@ -30,13 +24,10 @@ class MacroCalculationDB {
   // static const String columnFirebaseUserId = 'firebase_user_id'; // Remove
   static const String columnLastModified = 'last_modified'; // Keep
 
-  static Future<String> insertCalculation(
+  Future<String> insertCalculation(
     MacroResult result, {
     required String userId, // Require userId
   }) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-
     final id = result.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     // final timestamp = result.timestamp?.millisecondsSinceEpoch ?? DateTime.now().millisecondsSinceEpoch;
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -60,7 +51,7 @@ class MacroCalculationDB {
       columnLastModified: lastModified,
     };
 
-    await db.insert(
+    await database.insert(
       tableName,
       row,
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -69,13 +60,10 @@ class MacroCalculationDB {
     return id;
   }
 
-  static Future<bool> updateCalculation(
+  Future<bool> updateCalculation(
     MacroResult result, {
     required String userId, // Require userId
   }) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-
     if (result.id == null) {
       print(
         'MacroCalculationDB: Cannot update calculation without ID. Inserting instead.',
@@ -130,7 +118,7 @@ class MacroCalculationDB {
       columnLastModified: lastModified, // Update lastModified
     };
 
-    final rowsAffected = await db.update(
+    final rowsAffected = await database.update(
       tableName,
       row,
       where: '$columnId = ?', // Update based on primary key
@@ -143,13 +131,10 @@ class MacroCalculationDB {
   }
 
   // Update to only use userId
-  static Future<List<MacroResult>> getAllCalculations({
+  Future<List<MacroResult>> getAllCalculations({
     required String userId, // Require userId
   }) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-
-    final List<Map<String, dynamic>> maps = await db.query(
+    final List<Map<String, dynamic>> maps = await database.query(
       tableName,
       where: '$columnUserId = ?', // Query by userId
       whereArgs: [userId],
@@ -157,21 +142,21 @@ class MacroCalculationDB {
     );
     /* // Old logic
     if (userId != null) {
-      maps = await db.query(
+      maps = await database.query(
         tableName,
         where: '$columnUserId = ?',
         whereArgs: [userId],
         orderBy: '$columnTimestamp DESC',
       );
     } else if (firebaseUserId != null) {
-      maps = await db.query(
+      maps = await database.query(
         tableName,
         where: '$columnFirebaseUserId = ?',
         whereArgs: [firebaseUserId],
         orderBy: '$columnTimestamp DESC',
       );
     } else {
-      maps = await db.query(tableName, orderBy: '$columnTimestamp DESC');
+      maps = await database.query(tableName, orderBy: '$columnTimestamp DESC');
     }
     */
 
@@ -210,10 +195,8 @@ class MacroCalculationDB {
     });
   }
 
-  static Future<MacroResult?> getCalculationById(String id) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
+  Future<MacroResult?> getCalculationById(String id) async {
+    final List<Map<String, dynamic>> maps = await database.query(
       tableName,
       where: '$columnId = ?',
       whereArgs: [id],
@@ -250,13 +233,10 @@ class MacroCalculationDB {
   }
 
   // Update to only use userId
-  static Future<MacroResult?> getDefaultCalculation({
+  Future<MacroResult?> getDefaultCalculation({
     required String userId, // Require userId
   }) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-
-    final List<Map<String, dynamic>> maps = await db.query(
+    final List<Map<String, dynamic>> maps = await database.query(
       tableName,
       where: '$columnIsDefault = ? AND $columnUserId = ?', // Query by userId
       whereArgs: [1, userId],
@@ -264,21 +244,21 @@ class MacroCalculationDB {
     );
     /* // Old logic
     if (userId != null) {
-      maps = await db.query(
+      maps = await database.query(
         tableName,
         where: '$columnIsDefault = ? AND $columnUserId = ?',
         whereArgs: [1, userId],
         limit: 1,
       );
     } else if (firebaseUserId != null) {
-      maps = await db.query(
+      maps = await database.query(
         tableName,
         where: '$columnIsDefault = ? AND $columnFirebaseUserId = ?',
         whereArgs: [1, firebaseUserId],
         limit: 1,
       );
     } else {
-      maps = await db.query(
+      maps = await database.query(
         tableName,
         where: '$columnIsDefault = ?',
         whereArgs: [1],
@@ -317,15 +297,12 @@ class MacroCalculationDB {
   }
 
   // Update to only use userId
-  static Future<void> setDefaultCalculation(
+  Future<void> setDefaultCalculation(
     String id, {
     required String userId, // Require userId
   }) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
-
     // First, unset all defaults for this user
-    await db.update(
+    await database.update(
       tableName,
       {
         columnIsDefault: 0,
@@ -336,7 +313,7 @@ class MacroCalculationDB {
     );
     /* // Old logic
     if (userId != null) {
-      await db.update(
+      await database.update(
         tableName,
         {
           columnIsDefault: 0,
@@ -346,7 +323,7 @@ class MacroCalculationDB {
         whereArgs: [userId],
       );
     } else if (firebaseUserId != null) {
-      await db.update(
+      await database.update(
         tableName,
         {
           columnIsDefault: 0,
@@ -356,7 +333,7 @@ class MacroCalculationDB {
         whereArgs: [firebaseUserId],
       );
     } else {
-      await db.update(tableName, {
+      await database.update(tableName, {
         columnIsDefault: 0,
         columnLastModified: DateTime.now().millisecondsSinceEpoch,
       });
@@ -364,7 +341,7 @@ class MacroCalculationDB {
     */
 
     // Then set the new default
-    await db.update(
+    await database.update(
       tableName,
       {
         columnIsDefault: 1,
@@ -378,10 +355,12 @@ class MacroCalculationDB {
     );
   }
 
-  static Future<int> deleteCalculation(String id) async {
-    // Use the manually set database if available
-    final db = _db ?? await DatabaseHelper.instance.database;
+  Future<int> deleteCalculation(String id) async {
     print('MacroCalculationDB: Deleting calculation $id');
-    return await db.delete(tableName, where: '$columnId = ?', whereArgs: [id]);
+    return await database.delete(
+      tableName,
+      where: '$columnId = ?',
+      whereArgs: [id],
+    );
   }
 }

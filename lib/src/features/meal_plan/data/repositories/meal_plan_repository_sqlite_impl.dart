@@ -5,16 +5,24 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:macro_masher/src/core/persistence/local_storage_service.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import '../../models/meal_plan.dart';
-import '../meal_plan_db.dart';
+import '../meal_plan_db.dart'; // Keep this import
 // Import uuid if you plan to use it for ID generation
 // import 'package:uuid/uuid.dart';
 
 class MealPlanRepositorySQLiteImpl {
   final LocalStorageService _localStorageService;
+  final MealPlanDB _mealPlanDB; // Add MealPlanDB instance
+  final UserDB _userDB;
   String? _firebaseUserId;
   String? _localUserId; // Add localUserId field
 
-  MealPlanRepositorySQLiteImpl(this._localStorageService) {
+  // Update constructor to accept MealPlanDB
+  MealPlanRepositorySQLiteImpl(
+    this._localStorageService,
+    this._mealPlanDB,
+    this._userDB, // <<< Ensure this parameter is present
+  ) {
+    // Body should be like this:
     _initializeUserIds();
   }
 
@@ -27,7 +35,9 @@ class MealPlanRepositorySQLiteImpl {
       print(
         'MealPlanRepositorySQLiteImpl: Querying UserDB for local user ID associated with Firebase ID $_firebaseUserId.',
       );
-      final userFromDb = await UserDB.getUserByFirebaseId(
+      // TODO: Update this static call if/when UserDB is fully instance-based and provided
+      final userFromDb = await _userDB.getUserByFirebaseId(
+        // <<< Change _mealPlanDB back to _userDB
         _firebaseUserId!,
       ); // Use UserDB directly
       _localUserId =
@@ -78,7 +88,8 @@ class MealPlanRepositorySQLiteImpl {
       return []; // Return empty list if user ID is not available
     }
     // Ensure MealPlanDB.getAllPlansForUser expects and uses the userId
-    return await MealPlanDB.getAllPlansForUser(userId);
+    // Use the instance _mealPlanDB
+    return await _mealPlanDB.getAllPlansForUser(userId);
   }
 
   Future<String?> saveMealPlan(MealPlan plan) async {
@@ -106,7 +117,8 @@ class MealPlanRepositorySQLiteImpl {
     try {
       // Ensure MealPlanDB.insertMealPlan handles the plan and optionally the userId
       // If insertMealPlan uses planToSave.userId internally, passing userId might be redundant
-      await MealPlanDB.insertMealPlan(planToSave, userId);
+      // Use the instance _mealPlanDB
+      await _mealPlanDB.insertMealPlan(planToSave, userId);
       return planToSave.id;
     } catch (e) {
       print('Error saving meal plan to DB: $e');
@@ -116,7 +128,8 @@ class MealPlanRepositorySQLiteImpl {
 
   Future<MealPlan?> getMealPlanById(String id) async {
     // Fetch the plan using MealPlanDB
-    final plan = await MealPlanDB.getMealPlanById(id);
+    // Use the instance _mealPlanDB
+    final plan = await _mealPlanDB.getMealPlanById(id);
 
     // Optional but recommended: Verify ownership
     final userId = await _ensureLocalUserId();
@@ -142,7 +155,8 @@ class MealPlanRepositorySQLiteImpl {
     //   return 0;
     // }
 
-    // Call the static method in MealPlanDB to perform the deletion
-    return await MealPlanDB.deleteMealPlan(id);
+    // Call the instance method in MealPlanDB to perform the deletion
+    // Use the instance _mealPlanDB
+    return await _mealPlanDB.deleteMealPlan(id);
   }
 }

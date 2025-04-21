@@ -6,9 +6,10 @@ import 'macro_calculation_db.dart';
 
 class CalculatorRepositorySQLiteImpl {
   final firebase_auth.FirebaseAuth _auth;
+  final MacroCalculationDB _macroCalculationDB;
   String? _userId; // Keep track of local User ID (users table PK)
 
-  CalculatorRepositorySQLiteImpl(this._auth);
+  CalculatorRepositorySQLiteImpl(this._auth, this._macroCalculationDB);
 
   // Helper method to get the current user ID
   String? get userId => _auth.currentUser?.uid;
@@ -23,7 +24,7 @@ class CalculatorRepositorySQLiteImpl {
       await _initializeUserId(); // Attempt re-initialization
       if (_userId == null) return []; // Return empty if still null
     }
-    return await MacroCalculationDB.getAllCalculations(
+    return await _macroCalculationDB.getAllCalculations(
       userId: _userId!, // Use localUserId
     );
   }
@@ -38,17 +39,17 @@ class CalculatorRepositorySQLiteImpl {
     final newResult = result.copyWith(id: id);
 
     // Check if we're updating an existing result
-    final existingResult = await MacroCalculationDB.getCalculationById(id);
+    final existingResult = await _macroCalculationDB.getCalculationById(id);
 
     if (existingResult != null) {
       // Update existing result
-      await MacroCalculationDB.insertCalculation(
+      await _macroCalculationDB.insertCalculation(
         newResult,
         userId: _userId!, // Use localUserId
       );
     } else {
       // Add new result
-      await MacroCalculationDB.insertCalculation(
+      await _macroCalculationDB.insertCalculation(
         newResult,
         userId: _userId!, // Use localUserId
       );
@@ -61,10 +62,10 @@ class CalculatorRepositorySQLiteImpl {
   }
 
   Future<void> deleteMacro(String id) async {
-    final result = await MacroCalculationDB.getCalculationById(id);
+    final result = await _macroCalculationDB.getCalculationById(id);
     if (result == null) return;
 
-    await MacroCalculationDB.deleteCalculation(id);
+    await _macroCalculationDB.deleteCalculation(id);
 
     // If the deleted result was the default one, set a new default
     if (result.isDefault) {
@@ -81,7 +82,7 @@ class CalculatorRepositorySQLiteImpl {
       await _initializeUserId();
       if (_userId == null) throw Exception('User not initialized');
     }
-    await MacroCalculationDB.setDefaultCalculation(
+    await _macroCalculationDB.setDefaultCalculation(
       id,
       userId: _userId!, // Use localUserId
     );
@@ -93,12 +94,12 @@ class CalculatorRepositorySQLiteImpl {
       await _initializeUserId();
       if (_userId == null) return null;
     }
-    return await MacroCalculationDB.getDefaultCalculation(
+    return await _macroCalculationDB.getDefaultCalculation(
       userId: _userId!, // Use localUserId
     );
   }
 
   Future<MacroResult?> getMacroById(String id) async {
-    return await MacroCalculationDB.getCalculationById(id);
+    return await _macroCalculationDB.getCalculationById(id);
   }
 }

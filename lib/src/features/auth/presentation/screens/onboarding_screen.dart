@@ -11,7 +11,10 @@ import '../../../profile/presentation/providers/profile_provider.dart';
 
 Future<void> completeOnboarding(UserInfo userInfo, WidgetRef ref) async {
   final prefs = ref.read(sharedPreferencesProvider);
-  final syncService = ref.read(persistence.firestoreSyncServiceProvider);
+  // Await the future to get the actual service instance
+  final syncService = await ref.read(
+    persistence.firestoreSyncServiceProvider.future,
+  );
   final auth = ref.read(persistence.firebaseAuthProvider);
   final userId = auth.currentUser?.uid;
   if (userId != null) {

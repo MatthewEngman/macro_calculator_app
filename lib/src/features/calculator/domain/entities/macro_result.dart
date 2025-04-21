@@ -90,8 +90,7 @@ class MacroResult {
     if (userInfo.age == null ||
         userInfo.weight == null ||
         userInfo.feet == null ||
-        userInfo.inches == null ||
-        userInfo.sex == null) {
+        userInfo.inches == null) {
       print('MacroResult: Missing required fields for calculation');
       // Return a default calculation with zeros
       return MacroResult(
@@ -138,7 +137,7 @@ class MacroResult {
 
     // Calculate BMR using Mifflin-St Jeor Equation
     double bmr;
-    if (userInfo.sex?.toLowerCase() == 'female') {
+    if (userInfo.sex.toLowerCase() == 'female') {
       bmr = 10 * weightKg + 6.25 * heightCm - 5 * (userInfo.age ?? 0) - 161;
     } else {
       bmr = 10 * weightKg + 6.25 * heightCm - 5 * (userInfo.age ?? 0) + 5;
@@ -181,13 +180,13 @@ class MacroResult {
       case Goal.lose:
         calories -= calorieAdjustment;
         print(
-          'MacroResult: Goal adjustment (lose): -$calorieAdjustment calories (${weightChangeRate} ${userInfo.units == Units.imperial ? "lbs" : "kg"}/week)',
+          'MacroResult: Goal adjustment (lose): -$calorieAdjustment calories ($weightChangeRate ${userInfo.units == Units.imperial ? "lbs" : "kg"}/week)',
         );
         break;
       case Goal.gain:
         calories += calorieAdjustment;
         print(
-          'MacroResult: Goal adjustment (gain): +$calorieAdjustment calories (${weightChangeRate} ${userInfo.units == Units.imperial ? "lbs" : "kg"}/week)',
+          'MacroResult: Goal adjustment (gain): +$calorieAdjustment calories ($weightChangeRate ${userInfo.units == Units.imperial ? "lbs" : "kg"}/week)',
         );
         break;
       default:

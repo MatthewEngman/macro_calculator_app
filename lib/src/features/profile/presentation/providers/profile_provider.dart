@@ -1,21 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:macro_masher/src/core/persistence/repository_providers.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/profile_repository_hybrid_impl.dart';
 import '../../domain/repositories/profile_repository.dart';
 import '../../../calculator/domain/entities/macro_result.dart';
 import '../../../../core/persistence/onboarding_provider.dart';
+import 'package:macro_masher/src/core/persistence/repository_providers.dart'
+    as persistence;
 
 final macroListProvider = FutureProvider<List<MacroResult>>((ref) async {
   final onboardingComplete = ref.watch(onboardingCompleteProvider);
   if (!onboardingComplete) return [];
-  final repository = ref.watch(profileRepositoryProvider);
+  final repository = await ref.watch(
+    persistence.profileRepositorySyncProvider.future,
+  );
   return await repository.getSavedMacros();
 });
 
 final defaultMacroProvider = FutureProvider<MacroResult?>((ref) async {
   final onboardingComplete = ref.watch(onboardingCompleteProvider);
   if (!onboardingComplete) return null;
-  final repository = ref.watch(profileRepositoryProvider);
+  final repository = await ref.watch(
+    persistence.profileRepositorySyncProvider.future,
+  );
   return await repository.getDefaultMacro();
 });
 
@@ -23,24 +27,29 @@ final profileProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<List<MacroResult>>>((
       ref,
     ) {
-      return ProfileNotifier(ref.watch(profileRepositoryProvider));
+      return ProfileNotifier(ref);
     });
 
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  final syncService = ref.watch(firestoreSyncServiceProvider);
-  return ProfileRepositoryHybridImpl(syncService);
-});
+// final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
+//   final syncService = ref.watch(firestoreSyncServiceProvider);
+//   return ProfileRepositoryHybridImpl(syncService);
+// });
 
 class ProfileNotifier extends StateNotifier<AsyncValue<List<MacroResult>>> {
-  final ProfileRepository _repository;
+  final Ref ref;
+  late final ProfileRepository _repository;
 
-  ProfileNotifier(this._repository) : super(const AsyncValue.loading()) {
-    loadSavedMacros();
+  ProfileNotifier(this.ref) : super(const AsyncValue.loading()) {
+    _initialize();
   }
 
-  Future<void> loadSavedMacros() async {
+  Future<void> _initialize() async {
     state = const AsyncValue.loading();
     try {
+      _repository = await ref.read(
+        persistence.profileRepositorySyncProvider.future,
+      );
+      await loadSavedMacros();
       final macros = await _repository.getSavedMacros();
       state = AsyncValue.data(macros);
     } catch (e, stack) {
@@ -48,19 +57,31 @@ class ProfileNotifier extends StateNotifier<AsyncValue<List<MacroResult>>> {
     }
   }
 
+  Future<void> loadSavedMacros() async {
+    state = const AsyncValue.loading();
+    try {
+      // _repository should be initialized by _initialize before this is called
+      final macros = await _repository.getSavedMacros();
+      state = AsyncValue.data(macros);
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
+      print('Error loading saved macros: $e');
+    }
+  }
+
   Future<void> saveMacro(MacroResult result) async {
     await _repository.saveMacro(result);
-    loadSavedMacros();
+    await _initialize();
   }
 
   Future<void> deleteMacro(String id) async {
     await _repository.deleteMacro(id);
-    loadSavedMacros();
+    await _initialize();
   }
 
   Future<void> setDefaultMacro(String id) async {
     await _repository.setDefaultMacro(id);
-    await loadSavedMacros();
+    await _initialize();
   }
 
   Future<MacroResult?> getDefaultMacro() async {

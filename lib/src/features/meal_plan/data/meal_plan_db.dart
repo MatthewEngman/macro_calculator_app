@@ -1,16 +1,12 @@
 import 'package:sqflite/sqflite.dart';
-import '../../../core/persistence/database_helper.dart';
 import '../models/meal_plan.dart';
 
 class MealPlanDB {
+  final Database database;
+
+  MealPlanDB({required this.database});
+
   static const String tableName = 'meal_plans';
-
-  static Database? _db;
-
-  static void setDatabase(Database db) {
-    _db = db;
-    print('MealPlanDB: Database instance set manually');
-  }
 
   static const String columnId = 'id';
   static const String columnUserId = 'user_id';
@@ -27,7 +23,8 @@ class MealPlanDB {
   static const String columnLastModified = 'last_modified';
 
   static Future<void> createTable(Database db) async {
-    await db.execute('''
+    try {
+      await db.execute('''
           CREATE TABLE $tableName (
             $columnId TEXT PRIMARY KEY, 
             $columnUserId TEXT NOT NULL, 
@@ -44,16 +41,19 @@ class MealPlanDB {
             $columnLastModified INTEGER
           )
           ''');
-    print('MealPlanDB: Created $tableName table');
+      print('MealPlanDB: Created $tableName table');
+    } catch (e) {
+      print('MealPlanDB: Error creating $tableName table: $e');
+    }
   }
 
-  static Future<String> insertMealPlan(MealPlan plan, String userId) async {
-    final db = _db ?? await DatabaseHelper.instance.database;
+  Future<String> insertMealPlan(MealPlan plan, String userId) async {
+    final id = plan.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     final now = DateTime.now().millisecondsSinceEpoch;
 
     final mealPlanMap = plan.toMap();
 
-    mealPlanMap[columnId] = plan.id;
+    mealPlanMap[columnId] = id;
     mealPlanMap[columnUserId] = userId;
     mealPlanMap[columnCreatedAt] = now;
     mealPlanMap[columnUpdatedAt] = now;
@@ -61,25 +61,20 @@ class MealPlanDB {
     mealPlanMap.remove('timestamp');
     mealPlanMap.remove('feedback');
 
-    await db.insert(
+    await database.insert(
       tableName,
       mealPlanMap,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    print('MealPlanDB: Inserted meal plan ${plan.id} for user $userId');
-    // Assert that plan.id is not null, as the method must return a non-null String.
-    // This implies that the ID must be generated before calling insertMealPlan.
-    return plan.id!;
+    print('MealPlanDB: Inserted meal plan $id for user $userId');
+    return id;
   }
 
-  static Future<bool> updateMealPlan(MealPlan plan) async {
-    final db = _db ?? await DatabaseHelper.instance.database;
-
+  Future<bool> updateMealPlan(MealPlan plan) async {
     if (plan.id == null) {
       throw ArgumentError('Cannot update a meal plan without an ID');
     }
 
-    // Assert non-null when passing plan.id to getMealPlanById
     final existingPlan = await getMealPlanById(plan.id!);
     if (existingPlan == null) {
       print('MealPlanDB: Meal plan ${plan.id} not found for update.');
@@ -107,21 +102,47 @@ class MealPlanDB {
     mealPlanMap.remove('timestamp');
     mealPlanMap.remove('feedback');
 
-    final rowsAffected = await db.update(
-      tableName,
-      mealPlanMap,
-      where: '$columnId = ?',
-      whereArgs: [plan.id],
-    );
+    int rowsAffected = 0;
+    await database.transaction((txn) async {
+      rowsAffected = await txn.update(
+        tableName,
+        mealPlanMap,
+        where: '$columnId = ?',
+        whereArgs: [plan.id],
+      );
+    });
+
     print(
       'MealPlanDB: Updated meal plan ${plan.id}. Rows affected: $rowsAffected',
     );
     return rowsAffected > 0;
   }
 
-  static Future<List<MealPlan>> getAllPlansForUser(String userId) async {
-    final db = _db ?? await DatabaseHelper.instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
+  // Fetch all meal plans for a specific user
+  Future<List<MealPlan>> getAllPlans({required String userId}) async {
+    try {
+      print('MealPlanDB: getAllPlans called for userId: $userId');
+      final List<Map<String, dynamic>> maps = await database.query(
+        tableName,
+        where: '$columnUserId = ?', // Filter by userId
+        whereArgs: [userId],
+      );
+      print('MealPlanDB: Found ${maps.length} plans for userId $userId');
+      if (maps.isNotEmpty) {
+        return List.generate(maps.length, (i) {
+          return MealPlan.fromMap(maps[i]);
+        });
+      } else {
+        return [];
+      }
+    } catch (e) {
+      print('MealPlanDB: Error fetching all plans for user $userId: $e');
+      return [];
+    }
+  }
+
+  Future<List<MealPlan>> getAllPlansForUser(String userId) async {
+    final List<Map<String, dynamic>> maps = await database.query(
       tableName,
       where: '$columnUserId = ?',
       whereArgs: [userId],
@@ -135,24 +156,8 @@ class MealPlanDB {
     });
   }
 
-  /// Gets ALL meal plans from the database (used for syncing)
-  static Future<List<MealPlan>> getAllPlans() async {
-    final db = _db ?? await DatabaseHelper.instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      tableName,
-      orderBy: '$columnCreatedAt DESC',
-    );
-
-    if (maps.isEmpty) return [];
-
-    return List.generate(maps.length, (i) {
-      return MealPlan.fromMap(maps[i]);
-    });
-  }
-
-  static Future<MealPlan?> getMealPlanById(String id) async {
-    final db = _db ?? await DatabaseHelper.instance.database;
-    final List<Map<String, dynamic>> maps = await db.query(
+  Future<MealPlan?> getMealPlanById(String id) async {
+    final List<Map<String, dynamic>> maps = await database.query(
       tableName,
       where: '$columnId = ?',
       whereArgs: [id],
@@ -164,9 +169,8 @@ class MealPlanDB {
     return MealPlan.fromMap(maps.first);
   }
 
-  static Future<int> deleteMealPlan(String id) async {
-    final db = _db ?? await DatabaseHelper.instance.database;
+  Future<int> deleteMealPlan(String id) async {
     print('MealPlanDB: Deleting meal plan $id');
-    return await db.delete(tableName, where: '$columnId = ?', whereArgs: [id]);
+    return await database.delete(tableName, where: '$columnId = ?', whereArgs: [id]);
   }
 }

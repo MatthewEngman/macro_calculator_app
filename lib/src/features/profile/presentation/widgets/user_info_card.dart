@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:macro_masher/src/core/persistence/repository_providers.dart';
 import '../../domain/entities/user_info.dart';
 import '../providers/settings_provider.dart';
-import '../providers/user_info_provider.dart';
 
 class UserInfoCard extends ConsumerWidget {
   final UserInfo userInfo;
@@ -227,8 +226,8 @@ class UserInfoCard extends ConsumerWidget {
                             final auth = ref.read(firebaseAuthProvider);
                             final userId = auth.currentUser?.uid;
                             if (userId != null) {
-                              final syncService = ref.read(
-                                firestoreSyncServiceProvider,
+                              final syncService = await ref.read(
+                                firestoreSyncServiceProvider.future,
                               );
                               await syncService.setDefaultUserInfo(
                                 userId,
@@ -521,7 +520,9 @@ class UserInfoCard extends ConsumerWidget {
 
                   if (userId != null) {
                     // Save updated user info
-                    final syncService = ref.read(firestoreSyncServiceProvider);
+                    final syncService = await ref.read(
+                      firestoreSyncServiceProvider.future,
+                    );
                     await syncService.saveUserInfo(userId, updatedUserInfo);
                     // Close dialog
                     Navigator.of(context).pop();
