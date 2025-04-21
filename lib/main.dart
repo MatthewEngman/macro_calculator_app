@@ -1,423 +1,194 @@
 import 'package:flutter/material.dart';
 import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
+import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 import 'dart:io';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import 'src/core/persistence/background_sync_service.dart' as sync_service;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:macro_masher/firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:go_router/go_router.dart';
 
 import 'src/core/persistence/database_helper.dart';
-import 'src/core/persistence/local_storage_service.dart';
-import 'src/core/persistence/persistence_service.dart';
-import 'src/core/persistence/data_sync_manager.dart';
 import 'src/core/routing/app_router.dart';
 import 'src/core/routing/navigation_provider.dart' as navigation;
 import 'src/core/persistence/shared_preferences_provider.dart'
     as prefs_provider;
-import 'src/features/calculator/presentation/providers/calculator_provider.dart';
 import 'src/core/persistence/database_provider.dart' as db_provider_impl;
-import 'package:macro_masher/src/core/persistence/firestore_sync_service.dart';
 import 'package:macro_masher/src/core/persistence/repository_providers.dart'
     as repo_providers;
-import 'src/features/profile/presentation/providers/profile_provider.dart'
-    as profile_providers;
 import 'package:macro_masher/src/features/calculator/data/repositories/macro_calculation_db.dart';
-import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  Database? db;
+  late FirebaseFirestore firestore;
+  late FirebaseAuth auth;
+  const int databaseVersion = 3; // Define your current DB version
 
-  // Initialize Firebase Auth
-  final FirebaseAuth auth = FirebaseAuth.instance;
+  // Define onCreate logic directly in main
+  Future<void> _onCreate(Database db, int version) async {
+    print('main: Creating database tables for version $version');
+    // Use DatabaseHelper constants to build the SQL
+    await db.execute('''
+      CREATE TABLE ${DatabaseHelper.tableSettings} (
+        ${DatabaseHelper.columnKey} TEXT PRIMARY KEY,
+        ${DatabaseHelper.columnValue} TEXT NOT NULL
+      )
+    ''');
+    print('main: Created settings table');
+    await UserDB.createTable(db);
+    print('main: Created user table');
+    await MealPlanDB.createTable(db);
+    print('main: Created meal plan table');
+    // await MealLogDB.createTable(db); // Assuming MealLogDB has createTable
+    // print('main: Created meal log table');
+    // Macro Calculation table (using constants from MacroCalculationDB)
+    await db.execute('''
+      CREATE TABLE ${MacroCalculationDB.tableName} (
+        ${MacroCalculationDB.columnId} TEXT PRIMARY KEY,
+        ${MacroCalculationDB.columnUserId} TEXT NOT NULL,
+        ${MacroCalculationDB.columnCalories} REAL NOT NULL,
+        ${MacroCalculationDB.columnProtein} REAL NOT NULL,
+        ${MacroCalculationDB.columnCarbs} REAL NOT NULL,
+        ${MacroCalculationDB.columnFat} REAL NOT NULL,
+        ${MacroCalculationDB.columnCalculationType} TEXT,
+        ${MacroCalculationDB.columnCreatedAt} INTEGER NOT NULL,
+        ${MacroCalculationDB.columnUpdatedAt} INTEGER NOT NULL,
+        ${MacroCalculationDB.columnIsDefault} INTEGER NOT NULL DEFAULT 0,
+        ${MacroCalculationDB.columnName} TEXT,
+        ${MacroCalculationDB.columnLastModified} INTEGER NOT NULL
+      )
+    ''');
+    print('main: Created macro calculation table');
+    print('main: All tables created successfully');
+  }
 
-  // Initialize Firestore
-  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  // Define onUpgrade logic directly in main (adapt as needed based on DatabaseHelper._onUpgrade)
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    print('main: Upgrading database from version $oldVersion to $newVersion');
+    // Add upgrade logic here if necessary, similar to DatabaseHelper._onUpgrade
+    // Example: Check oldVersion and add missing tables/columns
+    if (oldVersion < 3) {
+      // Check if tables exist before creating if necessary
+      // Example: if (!await _tableExists(db, UserDB.tableName)) { await UserDB.createTable(db); }
+      // For simplicity now, assume onCreate handles missing tables okay on upgrade if structure changed
+      print('main: Performing upgrade tasks for version 3...');
+      // Add specific ALTER TABLE or CREATE TABLE IF NOT EXISTS commands if needed
+    }
+    print('main: Database upgrade check completed');
+  }
+
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    firestore = FirebaseFirestore.instance;
+    auth = FirebaseAuth.instance;
+
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'app_database.db');
+
+    // Force delete existing files
+    final dbFile = File(path);
+    final journalFile = File('$path-journal');
+    final shmFile = File('$path-shm');
+    final walFile = File('$path-wal');
+    if (await dbFile.exists()) {
+      print('Deleting existing database file...');
+      await dbFile.delete();
+    }
+    if (await journalFile.exists()) {
+      await journalFile.delete();
+    }
+    if (await shmFile.exists()) {
+      await shmFile.delete();
+    }
+    if (await walFile.exists()) {
+      await walFile.delete();
+    }
+
+    print('Initializing database directly in main...');
+    // Call openDatabase directly
+    db = await openDatabase(
+      path,
+      version: databaseVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+      readOnly: false, // Explicitly ensure writable
+      singleInstance: true,
+    );
+    print('Database initialized successfully in main.dart.');
+    print('main.dart: Initialized DB HashCode: ${db.hashCode}');
+
+    // Set the database instance for static access (still useful for direct calls if any)
+    DatabaseHelper.setDatabase(
+      db,
+    ); // Keep this if DatabaseHelper is used elsewhere
+    print('Database instances set for static access.');
+  } catch (e, stacktrace) {
+    print('FATAL: Database initialization failed in main: $e');
+    print('Stacktrace: $stacktrace');
+    // Handle critical error...
+    db = null; // Ensure db is null on failure
+  }
+
+  // Ensure database is available before setting up dependent providers
+  if (db == null) {
+    print(
+      "CRITICAL ERROR: Database is null, cannot proceed with provider setup.",
+    );
+    return; // Stop execution if DB failed
+  }
 
   // Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
+  // Initialize GoRouter
+  final router = appRouter; // Adjust if ref is needed early
 
-  // Force delete any existing database to ensure we start fresh
-  try {
-    final dbPath = await getDatabasesPath();
-    final dbFile = File(join(dbPath, 'app_database.db'));
-
-    if (await dbFile.exists()) {
-      print('Deleting existing database file');
-      await dbFile.delete();
-    }
-
-    // Ensure the directory exists and is writable
-    final dbDir = Directory(dbPath);
-    if (!await dbDir.exists()) {
-      await dbDir.create(recursive: true);
-    }
-
-    // Test write permissions
-    final testFile = File(join(dbPath, 'test_write.txt'));
-    await testFile.writeAsString('test');
-    await testFile.delete();
-
-    print('Database directory is writable');
-  } catch (e) {
-    print('Error preparing database directory: $e');
-  }
-
-  // Initialize the database manually to ensure it's writable
-  Database? db;
-  try {
-    final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'app_database.db');
-    print('Opening database at: $path');
-
-    // Open the database with explicit write mode
-    db = await openDatabase(
-      path,
-      version: 4,
-      onCreate: (Database db, int version) async {
-        print('Creating database tables for version $version');
-        try {
-          // Create settings table
-          await db.execute('''
-            CREATE TABLE settings (
-              key TEXT PRIMARY KEY,
-              value TEXT NOT NULL
-            )
-          ''');
-          print('Created settings table');
-
-          // Create meal plan table
-          await db.execute('''
-            CREATE TABLE meal_plans (
-              id TEXT PRIMARY KEY,
-              name TEXT NOT NULL,
-              description TEXT,
-              is_default INTEGER NOT NULL DEFAULT 0,
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL
-            )
-          ''');
-          print('Created meal plan table');
-
-          // Create user table with weight_change_rate column
-          await db.execute('''
-            CREATE TABLE users (
-              id TEXT PRIMARY KEY,
-              firebase_user_id TEXT NOT NULL,
-              weight REAL,
-              feet INTEGER,
-              inches INTEGER,
-              age INTEGER,
-              sex TEXT NOT NULL,
-              activity_level INTEGER NOT NULL,
-              goal INTEGER NOT NULL,
-              units INTEGER NOT NULL,
-              name TEXT,
-              is_default INTEGER NOT NULL DEFAULT 0,
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL,
-              last_modified INTEGER,
-              weight_change_rate REAL DEFAULT 1.0
-            )
-          ''');
-          print('Created user table');
-
-          // Create macro calculation table
-          await db.execute('''
-            CREATE TABLE macro_calculations (
-              id TEXT PRIMARY KEY,
-              user_id TEXT,
-              calories REAL NOT NULL,
-              protein REAL NOT NULL,
-              carbs REAL NOT NULL,
-              fat REAL NOT NULL,
-              name TEXT,
-              is_default INTEGER NOT NULL DEFAULT 0,
-              calculation_type INTEGER NOT NULL,
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL,
-              last_modified INTEGER,
-              FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-            )
-          ''');
-          print('Created macro calculation table');
-
-          // Create meal log table
-          await db.execute('''
-            CREATE TABLE meal_logs (
-              id TEXT PRIMARY KEY,
-              user_id TEXT NOT NULL,
-              date TEXT NOT NULL,
-              meal_type INTEGER NOT NULL,
-              food_name TEXT NOT NULL,
-              calories REAL NOT NULL,
-              protein REAL NOT NULL,
-              carbs REAL NOT NULL,
-              fat REAL NOT NULL,
-              created_at INTEGER NOT NULL,
-              updated_at INTEGER NOT NULL,
-              FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-            )
-          ''');
-          print('Created meal log table');
-
-          print('All tables created successfully');
-        } catch (e, stack) {
-          print('Error creating tables: $e');
-          print('Stack trace: $stack');
-          rethrow;
-        }
-      },
-      onUpgrade: (Database db, int oldVersion, int newVersion) async {
-        print('Upgrading database from version $oldVersion to $newVersion');
-        try {
-          if (oldVersion < 2) {
-            // Add new tables if upgrading from version 1
-            print('Upgrading from version 1 to 2');
-
-            // Check if users table exists
-            var tables = await db.rawQuery(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name='users'",
-            );
-            if (tables.isEmpty) {
-              await db.execute('''
-                CREATE TABLE users (
-                  id TEXT PRIMARY KEY,
-                  firebase_user_id TEXT NOT NULL,
-                  weight REAL,
-                  feet INTEGER,
-                  inches INTEGER,
-                  age INTEGER,
-                  sex TEXT NOT NULL,
-                  activity_level INTEGER NOT NULL,
-                  goal INTEGER NOT NULL,
-                  units INTEGER NOT NULL,
-                  name TEXT,
-                  is_default INTEGER NOT NULL DEFAULT 0,
-                  created_at INTEGER NOT NULL,
-                  updated_at INTEGER NOT NULL,
-                  last_modified INTEGER
-                )
-              ''');
-              print('Added users table during upgrade');
-            }
-
-            // Check if macro_calculations table exists
-            tables = await db.rawQuery(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name='macro_calculations'",
-            );
-            if (tables.isEmpty) {
-              await db.execute('''
-                CREATE TABLE macro_calculations (
-                  id TEXT PRIMARY KEY,
-                  user_id TEXT,
-                  calories REAL NOT NULL,
-                  protein REAL NOT NULL,
-                  carbs REAL NOT NULL,
-                  fat REAL NOT NULL,
-                  name TEXT,
-                  is_default INTEGER NOT NULL DEFAULT 0,
-                  calculation_type INTEGER NOT NULL,
-                  created_at INTEGER NOT NULL,
-                  updated_at INTEGER NOT NULL,
-                  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                )
-              ''');
-              print('Added macro_calculations table during upgrade');
-            }
-
-            // Check if meal_logs table exists
-            tables = await db.rawQuery(
-              "SELECT name FROM sqlite_master WHERE type='table' AND name='meal_logs'",
-            );
-            if (tables.isEmpty) {
-              await db.execute('''
-                CREATE TABLE meal_logs (
-                  id TEXT PRIMARY KEY,
-                  user_id TEXT NOT NULL,
-                  date TEXT NOT NULL,
-                  meal_type INTEGER NOT NULL,
-                  food_name TEXT NOT NULL,
-                  calories REAL NOT NULL,
-                  protein REAL NOT NULL,
-                  carbs REAL NOT NULL,
-                  fat REAL NOT NULL,
-                  created_at INTEGER NOT NULL,
-                  updated_at INTEGER NOT NULL,
-                  FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                )
-              ''');
-              print('Added meal_logs table during upgrade');
-            }
-          }
-
-          // Add weight_change_rate column to users table if upgrading to version 3
-          if (oldVersion < 3) {
-            print('Upgrading from version 2 to 3');
-
-            // Check if the column already exists to avoid errors
-            final tableInfo = await db.rawQuery("PRAGMA table_info(users)");
-            final columnExists = tableInfo.any(
-              (column) => column['name'] == 'weight_change_rate',
-            );
-
-            if (!columnExists) {
-              await db.execute(
-                'ALTER TABLE users ADD COLUMN weight_change_rate REAL DEFAULT 1.0',
-              );
-              print('Added weight_change_rate column to users table');
-            }
-          }
-
-          // Add last_modified column to macro_calculations table if upgrading to version 4
-          if (oldVersion < 4) {
-            print('Upgrading from version 3 to 4');
-
-            // Check if the column already exists to avoid errors
-            final tableInfo = await db.rawQuery(
-              "PRAGMA table_info(macro_calculations)",
-            );
-            final columnExists = tableInfo.any(
-              (column) => column['name'] == 'last_modified',
-            );
-
-            if (!columnExists) {
-              await db.execute(
-                'ALTER TABLE macro_calculations ADD COLUMN last_modified INTEGER',
-              );
-              print('Added last_modified column to macro_calculations table');
-            }
-          }
-
-          print('Database upgrade completed successfully');
-        } catch (e, stack) {
-          print('Error upgrading database: $e');
-          print('Stack trace: $stack');
-          rethrow;
-        }
-      },
-      readOnly: false,
-      singleInstance: true,
-    );
-
-    if (db != null) {
-      print('Database HashCode in main: ${db.hashCode}');
-      // Set the database instance in both DatabaseHelper and UserDB
-      DatabaseHelper.setDatabase(db);
-      UserDB.setDatabase(db);
-      MacroCalculationDB.setDatabase(db);
-      MealPlanDB.setDatabase(db);
-      print(
-        'Database instance set for UserDB, MacroCalculationDB and MealPlanDB',
-      );
-    }
-
-    print('Database initialized successfully');
-  } catch (e) {
-    print('Error initializing database: $e');
-    // Optionally handle the error more gracefully, e.g., show an error message and exit
-  }
-
-  // Check if database initialization failed
-  if (db == null) {
-    print('FATAL: Database could not be initialized. Exiting.');
-    // Depending on the platform, you might exit or show a critical error UI
-    // For now, let's throw an exception to halt execution
-    throw Exception('Database initialization failed');
-  }
-
-  // Initialize connectivity
-  final connectivity = Connectivity();
-
-  // Initialize the persistence service
-  final persistenceService = PersistenceService(db);
-  await persistenceService.initialize();
-
-  // Initialize local storage service
-  final localStorageService = LocalStorageService(persistenceService);
-
-  // Optionally, if FirestoreSyncService has an async static initializer:
-  await FirestoreSyncService.initialize(localStorageService);
-
-  // Create the FirestoreSyncService instance for provider override
-  final firestoreSyncService = FirestoreSyncService();
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        // NavigationProvider override using GoRouter
-        navigation.navigationProvider.overrideWithValue((route) {
-          final context = appRouter.routerDelegate.navigatorKey.currentContext;
-          if (context != null && context.mounted) {
-            context.go(route);
-          }
-        }),
-        repo_providers.firestoreSyncServiceProvider.overrideWithValue(
-          firestoreSyncService,
-        ),
-        prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
-        // Override the database provider with the initialized database
-        db_provider_impl.databaseProvider.overrideWithValue(db),
-        // Override the profile repository provider
-        profile_providers.profileRepositoryProvider.overrideWith(
-          (ref) => ref.watch(repo_providers.profileRepositorySyncProvider),
-        ),
-        // Override the profileProvider
-        profile_providers.profileProvider.overrideWith((ref) {
-          final repository = ref.watch(
-            profile_providers.profileRepositoryProvider,
-          );
-          return profile_providers.ProfileNotifier(repository);
-        }),
-        // Override the Firebase Auth provider
-        repo_providers.firebaseAuthProvider.overrideWithValue(
-          FirebaseAuth.instance,
-        ),
-        // Override the Firestore provider
-        repo_providers.firestoreProvider.overrideWithValue(
-          FirebaseFirestore.instance,
-        ),
-        // Override the connectivity provider
-        repo_providers.connectivityProvider.overrideWithValue(connectivity),
-        // Override the persistence service provider
-        persistenceServiceProvider.overrideWithValue(persistenceService),
-        // Override the data sync manager provider
-        repo_providers.dataSyncManagerProvider.overrideWithValue(
-          DataSyncManager(
-            FirebaseAuth.instance,
-            FirebaseFirestore.instance,
-            connectivity,
-          ),
-        ),
-        // Add any other overrides as needed...
-      ],
-      child: const MacroCalculatorApp(),
-    ),
+  // Setup Riverpod providers
+  final container = ProviderContainer(
+    overrides: [
+      prefs_provider.sharedPreferencesProvider.overrideWithValue(prefs),
+      repo_providers.firebaseAuthProvider.overrideWithValue(auth),
+      repo_providers.firestoreProvider.overrideWithValue(firestore),
+      navigation.goRouterProvider.overrideWithValue(router),
+      // Use the db instance created directly in main
+      db_provider_impl.databaseProvider.overrideWithValue(db),
+      // Services (these will now correctly use the overridden db via persistenceServiceProvider)
+      repo_providers.localStorageServiceProvider,
+      repo_providers.firestoreSyncServiceProvider,
+    ],
   );
+
+  // Start listening to auth changes to potentially trigger sync
+  // container.read(repo_providers.dataSyncManagerProvider).listenToAuthChanges(); // Uncomment if used
+
+  // Start background sync if applicable
+  // await sync_service.startBackgroundSync(container); // Pass container if needed
+
+  runApp(UncontrolledProviderScope(container: container, child: MyApp()));
 }
 
-class MacroCalculatorApp extends ConsumerWidget {
-  const MacroCalculatorApp({super.key});
+class MyApp extends ConsumerWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Initialize the background sync service
-    ref.read(sync_service.backgroundSyncServiceProvider);
+    // Get the GoRouter instance from the provider
+    final router = ref.watch(navigation.goRouterProvider);
 
     return MaterialApp.router(
-      routerConfig: appRouter,
-      // Optionally, if you use navigatorKey elsewhere:
-      // navigatorKey: appRouter.routerDelegate.navigatorKey,
-      // ...other properties...
+      title: 'Macro Masher',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      routerConfig: router, // Use routerConfig for GoRouter 6.x+
     );
   }
 }

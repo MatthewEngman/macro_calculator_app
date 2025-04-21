@@ -27,9 +27,7 @@ class _MealPlanHistoryScreenState extends ConsumerState<MealPlanHistoryScreen> {
 
   Future<void> _initializeMealPlans() async {
     try {
-      final repository = await ref.read(
-        mealPlanRepositorySQLiteProvider.future,
-      );
+      final repository = ref.read(mealPlanRepositorySQLiteProvider);
       setState(() {
         _mealPlansFuture = repository.getAllMealPlans();
       });
@@ -60,7 +58,7 @@ class _MealPlanHistoryScreenState extends ConsumerState<MealPlanHistoryScreen> {
   }
 
   Future<void> _refreshMealPlans() async {
-    final repository = await ref.read(mealPlanRepositorySQLiteProvider.future);
+    final repository = ref.read(mealPlanRepositorySQLiteProvider);
     setState(() {
       _mealPlansFuture = repository.getAllMealPlans();
     });
@@ -69,9 +67,7 @@ class _MealPlanHistoryScreenState extends ConsumerState<MealPlanHistoryScreen> {
 
   Future<void> _deleteMealPlan(String id) async {
     try {
-      final repository = await ref.read(
-        mealPlanRepositorySQLiteProvider.future,
-      );
+      final repository = ref.read(mealPlanRepositorySQLiteProvider);
       await repository.deleteMealPlan(id);
       await _refreshMealPlans();
       if (mounted) {

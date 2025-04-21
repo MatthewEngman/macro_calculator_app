@@ -405,8 +405,7 @@ class FirestoreSyncService {
               userInfo.age != null &&
               userInfo.weight != null &&
               userInfo.feet != null &&
-              userInfo.inches != null &&
-              userInfo.sex != null) {
+              userInfo.inches != null) {
             // This is a complete user info, use it
             mostCompleteUserInfo = userInfo;
             break;

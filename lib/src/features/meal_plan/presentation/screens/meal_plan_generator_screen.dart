@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:macro_masher/src/core/persistence/repository_providers.dart';
 import '../../services/meal_plan_service.dart';
-import '../../data/repositories/meal_plan_repository_sqlite_impl.dart';
 import '../../../../features/profile/presentation/providers/profile_provider.dart';
 
 class MealPlanGeneratorScreen extends ConsumerStatefulWidget {
@@ -76,7 +75,9 @@ class _MealPlanGeneratorScreenState
     setState(() => _isLoadingDefaultMacros = true);
     try {
       // Get the default macro from the profile repository
-      final profileRepository = ref.read(profileRepositoryProvider);
+      final profileRepository = await ref.read(
+        profileRepositorySyncProvider.future,
+      );
       final defaultMacro = await profileRepository.getDefaultMacro();
 
       // If default macro exists, prefill the form fields
@@ -143,7 +144,7 @@ class _MealPlanGeneratorScreenState
     // Note: The state type is AsyncValue<List<MacroResult>>, not UserInfo
     final userProfileState = ref.read(profileProvider);
     final localUserId = userProfileState.maybeWhen(
-      data: (profile) => profile?.first.id, // Corrected this line
+      data: (profile) => profile.first.id, // Corrected this line
       orElse: () => null,
     );
 
@@ -192,9 +193,7 @@ class _MealPlanGeneratorScreenState
       );
 
       // Get the repository using the correct provider by awaiting its future
-      final mealPlanRepository = await ref.read(
-        mealPlanRepositorySQLiteProvider.future,
-      );
+      final mealPlanRepository = ref.read(mealPlanRepositorySQLiteProvider);
       final savedPlanId = await mealPlanRepository.saveMealPlan(mealPlanToSave);
 
       if (!mounted) return;

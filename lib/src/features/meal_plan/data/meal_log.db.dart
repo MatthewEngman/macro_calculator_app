@@ -140,7 +140,7 @@ class MealLogDB {
   }
 
   static Future<String> insertMealLog(MealLog mealLog) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final id = mealLog.id ?? DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -173,7 +173,7 @@ class MealLogDB {
     String? userId,
     String? firebaseUserId,
   }) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
@@ -240,7 +240,7 @@ class MealLogDB {
     String? userId,
     String? firebaseUserId,
   }) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
 
     final startOfDay = DateTime(startDate.year, startDate.month, startDate.day);
     final endOfDay = DateTime(
@@ -309,7 +309,7 @@ class MealLogDB {
   }
 
   static Future<int> deleteMealLog(String id) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = DatabaseHelper.database;
     return await db.delete(tableName, where: '$columnId = ?', whereArgs: [id]);
   }
 }

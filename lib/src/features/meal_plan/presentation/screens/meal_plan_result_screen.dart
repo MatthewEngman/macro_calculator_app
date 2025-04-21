@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:path/path.dart';
-import '../../../../core/persistence/repository_providers.dart';
 import '../../models/meal_plan.dart';
-import '../../data/meal_plan_db.dart';
 import 'dart:convert';
 
 class MealPlanResultScreen extends ConsumerWidget {

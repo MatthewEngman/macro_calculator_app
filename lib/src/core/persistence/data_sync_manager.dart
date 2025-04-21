@@ -18,6 +18,9 @@ class DataSyncManager {
   final firebase_auth.FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final Connectivity _connectivity;
+  final UserDB _userDB;
+  final MacroCalculationDB _macroCalculationDB;
+  final MealPlanDB _mealPlanDB;
 
   final _syncStatusController = StreamController<SyncStatus>.broadcast();
   Stream<SyncStatus> get syncStatusStream => _syncStatusController.stream;
@@ -25,7 +28,14 @@ class DataSyncManager {
   SyncStatus _currentStatus = SyncStatus.idle;
   SyncStatus get currentStatus => _currentStatus;
 
-  DataSyncManager(this._auth, this._firestore, this._connectivity);
+  DataSyncManager(
+    this._auth,
+    this._firestore,
+    this._connectivity,
+    this._userDB,
+    this._macroCalculationDB,
+    this._mealPlanDB,
+  );
 
   String? get _userId => _auth.currentUser?.uid;
   String get _requiredUserId {
@@ -56,7 +66,7 @@ class DataSyncManager {
     try {
       _updateSyncStatus(SyncStatus.syncing);
 
-      final localProfiles = await UserDB.getAllUsers(
+      final localProfiles = await _userDB.getAllUsers(
         firebaseUserId: _requiredUserId,
       );
 
@@ -120,13 +130,13 @@ class DataSyncManager {
         );
 
         if (localProfile.id == null) {
-          await UserDB.insertUser(remoteProfile, _requiredUserId);
+          await _userDB.insertUser(remoteProfile, _requiredUserId);
         } else {
           final localTimestamp = localProfile.lastModified ?? DateTime(1970);
           final remoteTimestamp = remoteProfile.lastModified ?? DateTime(1970);
 
           if (remoteTimestamp.isAfter(localTimestamp)) {
-            await UserDB.updateUser(remoteProfile, _requiredUserId);
+            await _userDB.updateUser(remoteProfile, _requiredUserId);
           }
         }
       }
@@ -148,7 +158,7 @@ class DataSyncManager {
     try {
       _updateSyncStatus(SyncStatus.syncing);
 
-      final localUser = await UserDB.getUserByFirebaseId(_requiredUserId);
+      final localUser = await _userDB.getUserByFirebaseId(_requiredUserId);
       if (localUser == null || localUser.id == null) {
         print(
           'DataSyncManager: Cannot sync macro calculations. Local user not found for firebase ID $_requiredUserId',
@@ -157,7 +167,7 @@ class DataSyncManager {
       }
       final localUserId = localUser.id!;
 
-      final localCalculations = await MacroCalculationDB.getAllCalculations(
+      final localCalculations = await _macroCalculationDB.getAllCalculations(
         userId: localUserId,
       );
 
@@ -255,7 +265,7 @@ class DataSyncManager {
         );
 
         if (localCalc.id == null) {
-          await MacroCalculationDB.insertCalculation(
+          await _macroCalculationDB.insertCalculation(
             remoteCalc,
             userId: localUserId,
           );
@@ -264,7 +274,7 @@ class DataSyncManager {
           final remoteTimestamp = remoteCalc.lastModified ?? DateTime(1970);
 
           if (remoteTimestamp.isAfter(localTimestamp)) {
-            await MacroCalculationDB.updateCalculation(
+            await _macroCalculationDB.updateCalculation(
               remoteCalc,
               userId: localUserId,
             );
@@ -289,7 +299,7 @@ class DataSyncManager {
     try {
       _updateSyncStatus(SyncStatus.syncing);
 
-      final localUser = await UserDB.getUserByFirebaseId(_requiredUserId);
+      final localUser = await _userDB.getUserByFirebaseId(_requiredUserId);
       if (localUser == null || localUser.id == null) {
         print(
           'DataSyncManager: Cannot sync meal plans. Local user not found for firebase ID $_requiredUserId',
@@ -299,7 +309,7 @@ class DataSyncManager {
       }
       final localUserId = localUser.id!;
 
-      final localMealPlans = await MealPlanDB.getAllPlans();
+      final localMealPlans = await _mealPlanDB.getAllPlans(userId: localUserId);
 
       final remoteMealPlansSnapshot =
           await _firestore
@@ -357,19 +367,16 @@ class DataSyncManager {
         final remotePlan = entry.value;
 
         if (planId != null) {
-          final localPlan = localMealPlans.firstWhere(
-            (plan) => plan.id == planId,
-            orElse: () => MealPlan(userId: localUserId),
-          );
+          final localPlan = findLocalMealPlan(localMealPlans, remotePlan.id!);
 
-          if (localPlan.id == null) {
-            await MealPlanDB.insertMealPlan(remotePlan, localUserId);
+          if (localPlan == null) {
+            await _mealPlanDB.insertMealPlan(remotePlan, localUserId);
           } else {
             final localTimestamp = localPlan.lastModified ?? DateTime(1970);
             final remoteTimestamp = remotePlan.lastModified ?? DateTime(1970);
 
             if (remoteTimestamp.isAfter(localTimestamp)) {
-              await MealPlanDB.updateMealPlan(remotePlan);
+              await _mealPlanDB.updateMealPlan(remotePlan);
             }
           }
         }
@@ -379,6 +386,14 @@ class DataSyncManager {
     } catch (e) {
       print('Error syncing meal plans: $e');
       _updateSyncStatus(SyncStatus.error);
+    }
+  }
+
+  MealPlan? findLocalMealPlan(List<MealPlan> plans, String id) {
+    try {
+      return plans.firstWhere((p) => p.id == id);
+    } catch (e) {
+      return null;
     }
   }
 

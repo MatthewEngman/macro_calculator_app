@@ -80,8 +80,8 @@ class UserInfoTab extends ConsumerWidget {
                       final authInstance = ref.read(firebaseAuthProvider);
                       final userId = authInstance.currentUser?.uid;
                       if (userId != null) {
-                        final syncService = ref.read(
-                          firestoreSyncServiceProvider,
+                        final syncService = await ref.read(
+                          firestoreSyncServiceProvider.future,
                         );
                         await syncService.deleteUserInfo(userId, userInfo.id!);
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -355,7 +355,9 @@ class UserInfoTab extends ConsumerWidget {
 
                   if (userId != null) {
                     // Save user info
-                    final syncService = ref.read(firestoreSyncServiceProvider);
+                    final syncService = await ref.read(
+                      firestoreSyncServiceProvider.future,
+                    );
                     await syncService.saveUserInfo(userId, userInfo);
 
                     // Close dialog

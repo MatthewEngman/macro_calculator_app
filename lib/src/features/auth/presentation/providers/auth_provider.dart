@@ -34,7 +34,7 @@ final navigationProvider = Provider<void Function(String)>((ref) {
 
 final authStateListenerProvider = Provider<void>((ref) {
   ref.listen<AsyncValue<User?>>(authStateChangesProvider, (previous, current) {
-    current.whenData((user) {
+    current.whenData((user) async {
       if (user != null && !user.isAnonymous) {
         // When a user signs in, check if they need onboarding
         final prefs = ref.read(sharedPreferencesProvider);
@@ -50,8 +50,10 @@ final authStateListenerProvider = Provider<void>((ref) {
         }
 
         // Otherwise, check if they have a profile and create one if needed
-        final syncService = ref.read(firestoreSyncServiceProvider);
-        syncService.getSavedUserInfos(user.uid).then((userInfos) async {
+        final syncService = await ref.read(firestoreSyncServiceProvider.future);
+
+        try {
+          final userInfos = await syncService.getSavedUserInfos(user.uid);
           if (userInfos.isEmpty) {
             // Create a default profile for the new user
             final defaultProfile = app.UserInfo(
@@ -66,7 +68,12 @@ final authStateListenerProvider = Provider<void>((ref) {
             );
             await syncService.saveUserInfo(user.uid, defaultProfile);
           }
-        });
+        } catch (e, stack) {
+          print(
+            'Error checking/creating user profile in auth listener: $e\n$stack',
+          );
+          // Handle error appropriately, maybe log it
+        }
       } else if (user != null && user.isAnonymous) {
         // Anonymous user, show onboarding
         Future.delayed(Duration(milliseconds: 100), () {
