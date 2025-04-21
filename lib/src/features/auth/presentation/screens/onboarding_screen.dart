@@ -8,6 +8,7 @@ import '../../../profile/domain/entities/user_info.dart'; // Assuming Goal, Acti
 import '../../../profile/presentation/providers/settings_provider.dart'; // Assuming sharedPreferencesProvider is defined via this import chain
 import '../../../calculator/presentation/providers/calculator_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
+import 'dart:convert';
 
 Future<void> completeOnboarding(UserInfo userInfo, WidgetRef ref) async {
   final prefs = ref.read(sharedPreferencesProvider);
@@ -18,8 +19,18 @@ Future<void> completeOnboarding(UserInfo userInfo, WidgetRef ref) async {
   final auth = ref.read(persistence.firebaseAuthProvider);
   final userId = auth.currentUser?.uid;
   if (userId != null) {
-    await syncService.saveUserInfo(userId, userInfo);
-    await prefs.setBool('onboarding_complete', true);
+    try {
+      // Try to save to database, but don't let failure block onboarding completion
+      await syncService.saveUserInfo(userId, userInfo);
+      print('Successfully saved user info during onboarding');
+    } catch (e) {
+      print('Error saving user info during onboarding: $e');
+      // Continue despite database error - we'll rely on in-memory cache
+    } finally {
+      // Always mark onboarding as complete, even if database operations fail
+      await prefs.setBool('onboarding_complete', true);
+      print('Onboarding marked as complete in SharedPreferences');
+    }
   }
 }
 
@@ -130,6 +141,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final auth = ref.read(persistence.firebaseAuthProvider);
       final currentUser = auth.currentUser;
 
+      // Check if user is authenticated (either signed in or anonymous)
+      if (currentUser == null) {
+        // Handle case where user is not authenticated at all
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: User not authenticated'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      // Use Firebase UID as the user ID (works for both Google sign-in and anonymous users)
+      final String userId = currentUser.uid;
+      final bool isAnonymous = currentUser.isAnonymous;
+
+      print('Onboarding: User ID: $userId (anonymous: $isAnonymous)');
+
       // Generate a unique ID for the user profile
       final String uniqueId = DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -150,20 +179,129 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         weightChangeRate: _weightChangeRate, // Add weight change rate
       );
 
-      // Check if user is authenticated
-      if (currentUser == null) {
-        // Handle case where user is not authenticated
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: User not authenticated'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
       // User is authenticated, proceed with saving
       await completeOnboarding(userInfo, ref);
+
+      // Calculate macros
+      final macroResult = calculatorNotifier.calculateMacros();
+
+      // Save the calculated macros as the default
+      if (macroResult != null) {
+        // Save the macro result with a timestamp and userId
+        final macroWithTimestampAndUserId = macroResult.copyWith(
+          timestamp: DateTime.now(),
+          userId:
+              userId, // Add the Firebase user ID here (works for both Google and anonymous)
+        );
+
+        print('Saving macro with userId: $userId (anonymous: $isAnonymous)');
+
+        // Try to save via the profile notifier (which uses the database)
+        try {
+          await profileNotifier.saveMacro(
+            macroWithTimestampAndUserId,
+            userId: userId,
+          );
+        } catch (e) {
+          print('Error saving macro via profile notifier: $e');
+          // Continue despite error - we'll save directly to SharedPreferences below
+        }
+
+        // DIRECT FALLBACK: Save the macro calculation directly to SharedPreferences
+        // This ensures we have the data even if database operations fail
+        try {
+          final macroJson = {
+            'id':
+                macroWithTimestampAndUserId.id ??
+                DateTime.now().millisecondsSinceEpoch.toString(),
+            'calories': macroWithTimestampAndUserId.calories,
+            'protein': macroWithTimestampAndUserId.protein,
+            'carbs': macroWithTimestampAndUserId.carbs,
+            'fat': macroWithTimestampAndUserId.fat,
+            'timestamp':
+                macroWithTimestampAndUserId.timestamp?.toIso8601String() ??
+                DateTime.now().toIso8601String(),
+            'isDefault': true, // Force this to be default
+            'userId': userId,
+            'name': 'My Macros',
+            'calculationType':
+                _selectedGoal == Goal.lose
+                    ? 'lose'
+                    : _selectedGoal == Goal.maintain
+                    ? 'maintain'
+                    : 'gain',
+            'lastModified': DateTime.now().toIso8601String(),
+          };
+
+          // Get existing data or initialize empty list
+          final String key = 'saved_macros_$userId';
+          final String? existingData = prefs.getString(key);
+          final List<Map<String, dynamic>> macrosList = [];
+
+          if (existingData != null && existingData.isNotEmpty) {
+            // Parse existing data
+            final List<dynamic> parsed = jsonDecode(existingData);
+            // Convert to list of maps and filter out any existing default macros
+            macrosList.addAll(
+              parsed
+                  .map((item) => Map<String, dynamic>.from(item))
+                  .where((item) => item['isDefault'] != true)
+                  .toList(),
+            );
+          }
+
+          // Add the new macro (which is set as default)
+          macrosList.add(macroJson);
+
+          // Save back to SharedPreferences
+          await prefs.setString(key, jsonEncode(macrosList));
+          print(
+            'Successfully saved macro directly to SharedPreferences as fallback',
+          );
+
+          // Also save as default_macro for quick access
+          await prefs.setString('default_macro_$userId', jsonEncode(macroJson));
+          print('Saved default macro reference to SharedPreferences');
+        } catch (e) {
+          print('Error saving to SharedPreferences: $e');
+          // Continue despite error - we've tried our best
+        }
+
+        // Reload saved macros to get the updated list with IDs
+        try {
+          await profileNotifier.loadSavedMacros(userId: userId);
+
+          // Get the current state of saved macros
+          final savedMacrosState = ref.read(profileProvider);
+
+          final macrosList = savedMacrosState.value;
+          if (savedMacrosState.hasValue &&
+              macrosList != null &&
+              macrosList.isNotEmpty) {
+            // Get the most recently saved macro (should be the one we just added)
+            final lastSavedMacro = macrosList.last;
+
+            // Set it as the default if it has an ID
+            if (lastSavedMacro.id != null) {
+              print(
+                'Setting default macro with ID: ${lastSavedMacro.id} for user: $userId (anonymous: $isAnonymous)',
+              );
+              try {
+                await profileNotifier.setDefaultMacro(
+                  lastSavedMacro.id!,
+                  userId,
+                );
+              } catch (e) {
+                print('Error setting default macro: $e');
+                // Continue despite error - we've already saved it as default in SharedPreferences
+              }
+            }
+          }
+        } catch (e) {
+          print('Error reloading saved macros: $e');
+          // Continue despite error - we've already saved to SharedPreferences
+        }
+      }
 
       // Set the calculator values based on user profile
       calculatorNotifier.weight = userInfo.weight ?? 70;
@@ -209,42 +347,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       }
       calculatorNotifier.goal = goalString;
 
-      // Calculate macros
-      final macroResult = calculatorNotifier.calculateMacros();
-
-      // Save the calculated macros as the default
-      if (macroResult != null) {
-        // Save the macro result with a timestamp
-        final macroWithTimestamp = macroResult.copyWith(
-          timestamp: DateTime.now(),
-        );
-        await profileNotifier.saveMacro(macroWithTimestamp);
-
-        // Reload saved macros to get the updated list with IDs
-        await profileNotifier.loadSavedMacros();
-
-        // Get the current state of saved macros
-        final savedMacrosState = ref.read(profileProvider);
-
-        final macrosList = savedMacrosState.value;
-        if (savedMacrosState.hasValue &&
-            macrosList != null &&
-            macrosList.isNotEmpty) {
-          // Get the most recently saved macro (should be the one we just added)
-          final lastSavedMacro = macrosList.last;
-
-          // Set it as the default if it has an ID
-          if (lastSavedMacro.id != null) {
-            await profileNotifier.setDefaultMacro(lastSavedMacro.id!);
-          }
-        }
-      }
-
       // Save the goal for future reference
       await calculatorNotifier.saveGoal(goalString);
 
       // Mark onboarding as complete
       await prefs.setBool('onboarding_complete', true);
+      print('Onboarding marked as complete in SharedPreferences');
+
+      // Force refresh the providers to ensure they pick up the latest data
+      ref.refresh(profileProvider);
+
+      // Add a small delay to ensure all async operations have completed
+      // This gives time for the database and SharedPreferences operations to finish
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // Explicitly refresh the defaultMacroProvider to ensure it picks up the latest data
+      ref.refresh(defaultMacroProvider);
 
       // Check if widget is still mounted before navigating
       if (mounted) {

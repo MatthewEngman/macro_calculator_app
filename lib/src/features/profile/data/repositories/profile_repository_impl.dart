@@ -11,9 +11,15 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
   ProfileRepositoryImpl(this._prefs);
 
+  // Helper to get the key with user ID
+  String _getKey(String? userId) {
+    if (userId == null) return _key;
+    return '${_key}_$userId';
+  }
+
   @override
-  Future<List<MacroResult>> getSavedMacros() async {
-    final String? data = _prefs.getString(_key);
+  Future<List<MacroResult>> getSavedMacros({String? userId}) async {
+    final String? data = _prefs.getString(_getKey(userId));
     if (data == null) return [];
 
     final List<dynamic> jsonList = json.decode(data);
@@ -25,19 +31,24 @@ class ProfileRepositoryImpl implements ProfileRepository {
             protein: json['protein'],
             carbs: json['carbs'],
             fat: json['fat'],
-            timestamp: DateTime.parse(json['timestamp']),
+            timestamp:
+                json['timestamp'] != null
+                    ? DateTime.parse(json['timestamp'])
+                    : null,
             isDefault: json['isDefault'] ?? false,
+            userId: userId,
           ),
         )
         .toList();
   }
 
   @override
-  Future<void> saveMacro(MacroResult result) async {
-    final List<MacroResult> current = await getSavedMacros();
+  Future<void> saveMacro(MacroResult result, {String? userId}) async {
+    final List<MacroResult> current = await getSavedMacros(userId: userId);
     final newResult = result.copyWith(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
+      userId: userId,
     );
     current.add(newResult);
 
@@ -52,51 +63,46 @@ class ProfileRepositoryImpl implements ProfileRepository {
               'fat': r.fat,
               'timestamp': r.timestamp?.toIso8601String(),
               'isDefault': r.isDefault,
+              'userId': r.userId,
             },
           )
           .toList(),
     );
 
-    await _prefs.setString(_key, data);
+    await _prefs.setString(_getKey(userId), data);
   }
 
   @override
   Future<void> deleteMacro(String id) async {
-    final List<MacroResult> current = await getSavedMacros();
+    // Since we don't know which user this macro belongs to, we need to check all
+    final allKeys = _prefs.getKeys().where((key) => key.startsWith(_key));
 
-    // Find the macro to delete
-    final macroToDeleteIndex = current.indexWhere((r) => r.id == id);
+    for (final key in allKeys) {
+      final String? data = _prefs.getString(key);
+      if (data == null) continue;
 
-    // If macro not found or is default, don't delete
-    if (macroToDeleteIndex == -1) return;
-    if (current[macroToDeleteIndex].isDefault) return;
+      final List<dynamic> jsonList = json.decode(data);
+      final List<Map<String, dynamic>> updatedList = [];
+      bool changed = false;
 
-    // Remove the macro
-    current.removeAt(macroToDeleteIndex);
+      for (final item in jsonList) {
+        if (item['id'] == id && !(item['isDefault'] ?? false)) {
+          changed = true;
+          continue; // Skip this item (delete)
+        }
+        updatedList.add(Map<String, dynamic>.from(item));
+      }
 
-    // Save the updated list
-    final String data = json.encode(
-      current
-          .map(
-            (r) => {
-              'id': r.id,
-              'calories': r.calories,
-              'protein': r.protein,
-              'carbs': r.carbs,
-              'fat': r.fat,
-              'timestamp': r.timestamp?.toIso8601String(),
-              'isDefault': r.isDefault,
-            },
-          )
-          .toList(),
-    );
-
-    await _prefs.setString(_key, data);
+      if (changed) {
+        await _prefs.setString(key, json.encode(updatedList));
+        return; // Found and deleted
+      }
+    }
   }
 
   @override
-  Future<void> setDefaultMacro(String id) async {
-    final List<MacroResult> current = await getSavedMacros();
+  Future<void> setDefaultMacro(String id, {required String userId}) async {
+    final List<MacroResult> current = await getSavedMacros(userId: userId);
 
     // Update all macros: set isDefault to false for all except the one with matching id
     final updated =
@@ -115,17 +121,18 @@ class ProfileRepositoryImpl implements ProfileRepository {
               'fat': r.fat,
               'timestamp': r.timestamp?.toIso8601String(),
               'isDefault': r.isDefault,
+              'userId': r.userId,
             },
           )
           .toList(),
     );
 
-    await _prefs.setString(_key, data);
+    await _prefs.setString(_getKey(userId), data);
   }
 
   @override
-  Future<MacroResult?> getDefaultMacro() async {
-    final List<MacroResult> macros = await getSavedMacros();
+  Future<MacroResult?> getDefaultMacro({String? userId}) async {
+    final List<MacroResult> macros = await getSavedMacros(userId: userId);
     try {
       return macros.firstWhere((macro) => macro.isDefault);
     } catch (e) {
