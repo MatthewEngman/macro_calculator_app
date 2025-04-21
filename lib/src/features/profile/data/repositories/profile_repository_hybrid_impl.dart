@@ -197,11 +197,8 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
   bool _isUserInfoComplete(app_models.UserInfo userInfo) {
     return userInfo.age != null &&
         userInfo.weight != null &&
-        userInfo.sex != null &&
         (userInfo.units == Units.metric ||
-            (userInfo.feet != null && userInfo.inches != null)) &&
-        userInfo.activityLevel != null &&
-        userInfo.goal != null;
+            (userInfo.feet != null && userInfo.inches != null));
   }
 
   // Helper method to get a list of missing fields for debugging
@@ -210,13 +207,10 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
 
     if (userInfo.age == null) missingFields.add('age');
     if (userInfo.weight == null) missingFields.add('weight');
-    if (userInfo.sex == null) missingFields.add('sex');
     if (userInfo.units == Units.imperial &&
         (userInfo.feet == null || userInfo.inches == null)) {
       missingFields.add('height');
     }
-    if (userInfo.activityLevel == null) missingFields.add('activityLevel');
-    if (userInfo.goal == null) missingFields.add('goal');
 
     return missingFields.join(', ');
   }

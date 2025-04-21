@@ -1,6 +1,5 @@
 import 'package:riverpod/riverpod.dart';
 import '../../../../core/persistence/persistence_service.dart';
-import '../../../../core/persistence/database_provider.dart';
 import '../../../profile/presentation/providers/settings_provider.dart';
 import '../../domain/entities/calculation_input.dart';
 import '../../domain/entities/macro_result.dart';

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 import 'dart:io';
 import 'package:path/path.dart';
@@ -222,7 +221,7 @@ Future<void> main() async {
       print('Database successfully initialized through DatabaseHelper');
     } catch (e) {
       print('Error initializing database: $e');
-      throw e; // Rethrow to abort app initialization
+      rethrow; // Rethrow to abort app initialization
     }
 
     // Initialize SharedPreferences

@@ -207,33 +207,33 @@ class DatabaseHelper {
 
     // Create settings table
     await db.rawQuery('''
-      CREATE TABLE IF NOT EXISTS ${tableSettings} (
-        ${columnKey} TEXT PRIMARY KEY,
-        ${columnValue} TEXT,
-        ${columnLastModified} INTEGER
+      CREATE TABLE IF NOT EXISTS $tableSettings (
+        $columnKey TEXT PRIMARY KEY,
+        $columnValue TEXT,
+        $columnLastModified INTEGER
       )
     ''');
     print('DatabaseHelper: Created settings table');
 
     // Create users table
     await db.rawQuery('''
-      CREATE TABLE IF NOT EXISTS ${tableUsers} (
-        ${columnId} TEXT PRIMARY KEY,
-        ${columnFirebaseUserId} TEXT,
-        ${columnName} TEXT,
-        ${columnAge} INTEGER,
-        ${columnSex} TEXT,
-        ${columnWeight} REAL,
-        ${columnFeet} INTEGER,
-        ${columnInches} REAL,
-        ${columnActivityLevel} TEXT,
-        ${columnGoal} TEXT,
-        ${columnUnits} TEXT,
-        ${columnWeightChangeRate} REAL DEFAULT 1.0,
-        ${columnIsDefault} INTEGER DEFAULT 0,
-        ${columnCreatedAt} INTEGER,
-        ${columnUpdatedAt} INTEGER,
-        ${columnLastModified} INTEGER
+      CREATE TABLE IF NOT EXISTS $tableUsers (
+        $columnId TEXT PRIMARY KEY,
+        $columnFirebaseUserId TEXT,
+        $columnName TEXT,
+        $columnAge INTEGER,
+        $columnSex TEXT,
+        $columnWeight REAL,
+        $columnFeet INTEGER,
+        $columnInches REAL,
+        $columnActivityLevel TEXT,
+        $columnGoal TEXT,
+        $columnUnits TEXT,
+        $columnWeightChangeRate REAL DEFAULT 1.0,
+        $columnIsDefault INTEGER DEFAULT 0,
+        $columnCreatedAt INTEGER,
+        $columnUpdatedAt INTEGER,
+        $columnLastModified INTEGER
       )
     ''');
     print('DatabaseHelper: Created user table');
@@ -253,7 +253,7 @@ class DatabaseHelper {
         is_default INTEGER DEFAULT 0,
         name TEXT,
         last_modified INTEGER,
-        FOREIGN KEY (user_id) REFERENCES ${tableUsers} (${columnId}) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES $tableUsers ($columnId) ON DELETE CASCADE
       )
     ''');
     print('DatabaseHelper: Created macro_calculations table');
@@ -279,7 +279,7 @@ class DatabaseHelper {
         created_at INTEGER,
         updated_at INTEGER,
         last_modified INTEGER,
-        FOREIGN KEY (user_id) REFERENCES ${tableUsers} (${columnId}) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES $tableUsers ($columnId) ON DELETE CASCADE,
         FOREIGN KEY (meal_plan_id) REFERENCES meal_plans (id) ON DELETE CASCADE
       )
     ''');
@@ -296,7 +296,7 @@ class DatabaseHelper {
     if (oldVersion < 2) {
       // Add weight_change_rate column to users table if upgrading from v1
       await db.rawQuery(
-        'ALTER TABLE ${tableUsers} ADD COLUMN ${columnWeightChangeRate} REAL DEFAULT 1.0',
+        'ALTER TABLE $tableUsers ADD COLUMN $columnWeightChangeRate REAL DEFAULT 1.0',
       );
       print('DatabaseHelper: Added weight_change_rate column to users table');
     }

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:http/http.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../../core/persistence/database_helper.dart';
 
