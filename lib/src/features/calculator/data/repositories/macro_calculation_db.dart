@@ -1,9 +1,27 @@
+import 'package:flutter/material.dart';
+import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../domain/entities/macro_result.dart';
-import '../../../../core/persistence/database_helper.dart';
 
 class MacroCalculationDB {
-  MacroCalculationDB();
+  final IDatabaseHelper dbHelper;
+
+  @visibleForTesting
+  static Map<String, List<MacroResult>> get calculationsCache =>
+      _calculationsCache;
+
+  @visibleForTesting
+  static void setCalculationsCache(String userId, List<MacroResult> macros) {
+    _calculationsCache[userId] = macros;
+  }
+
+  @visibleForTesting
+  static void clearCalculationsCache(String userId) {
+    _calculationsCache.remove(userId);
+  }
+
+  MacroCalculationDB({IDatabaseHelper? dbHelper})
+    : dbHelper = dbHelper ?? DatabaseHelperWrapper();
 
   static const String tableName = 'macro_calculations';
 
@@ -43,8 +61,7 @@ class MacroCalculationDB {
 
     while (retryCount < maxRetries) {
       try {
-        // Always get the latest database instance
-        final db = await DatabaseHelper.getInstance();
+        final db = await dbHelper.getInstance();
         return await operation(db);
       } catch (e) {
         final errorMsg = e.toString().toLowerCase();
@@ -56,17 +73,11 @@ class MacroCalculationDB {
           print(
             'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
           );
-
           try {
-            // Get a fresh database instance with aggressive recovery
-            // Always use force recreation for read-only errors
-            await DatabaseHelper.verifyDatabaseWritable();
-
+            await dbHelper.verifyDatabaseWritable();
             retryCount++;
-
-            // Small delay before retry to allow system to stabilize
             await Future.delayed(Duration(milliseconds: 300));
-            continue; // Retry the operation with the recovered database
+            continue;
           } catch (recoveryError) {
             print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
@@ -76,20 +87,15 @@ class MacroCalculationDB {
             }
           }
         } else {
-          // For other errors, just rethrow
           rethrow;
         }
       }
       retryCount++;
     }
-
     throw Exception('Database operation failed after $maxRetries attempts');
   }
 
-  Future<String> insertCalculation(
-    MacroResult result, {
-    required String userId, // Require userId
-  }) async {
+  Future<String> insertCalculation(MacroResult result, String userId) async {
     final id = result.id ?? DateTime.now().millisecondsSinceEpoch.toString();
     final now = DateTime.now().millisecondsSinceEpoch;
     final createdAt = now;
@@ -121,7 +127,7 @@ class MacroCalculationDB {
     // Try a more direct approach for critical operations
     try {
       // Get a fresh database instance
-      final db = await DatabaseHelper.getInstance();
+      final db = await dbHelper.getInstance();
 
       // Try the operation directly
       await db.insert(
@@ -179,8 +185,8 @@ class MacroCalculationDB {
 
       // If direct approach fails, try to force recreate the database
       try {
-        await DatabaseHelper.verifyDatabaseWritable();
-        final db = await DatabaseHelper.getInstance();
+        await dbHelper.verifyDatabaseWritable();
+        final db = await dbHelper.getInstance();
 
         // Try the operation again with the fresh database
         await db.insert(
@@ -289,7 +295,7 @@ class MacroCalculationDB {
       print(
         'MacroCalculationDB: Cannot update calculation without ID. Inserting instead.',
       );
-      await insertCalculation(result, userId: userId);
+      await insertCalculation(result, userId);
       return true;
     }
 
@@ -300,7 +306,7 @@ class MacroCalculationDB {
         'MacroCalculationDB: Record ${result.id} not found for update. Inserting instead.',
       );
       // Record doesn't exist, insert it instead
-      await insertCalculation(result, userId: userId);
+      await insertCalculation(result, userId);
       return true;
     }
 
@@ -423,18 +429,33 @@ class MacroCalculationDB {
   }
 
   Future<MacroResult?> getCalculationById(String id) async {
-    final List<Map<String, dynamic>> maps = await executeWithRecovery(
-      (db) => db.query(
-        tableName,
-        where: '$columnId = ?',
-        whereArgs: [id],
-        limit: 1,
-      ),
-    );
+    try {
+      final List<Map<String, dynamic>> maps = await executeWithRecovery(
+        (db) => db.query(
+          tableName,
+          where: '$columnId = ?',
+          whereArgs: [id],
+          limit: 1,
+        ),
+      );
 
-    if (maps.isEmpty) return null;
+      if (maps.isNotEmpty) {
+        return MacroResult.fromMap(maps.first);
+      }
+    } catch (_) {
+      // Ignore, fallback to cache below
+    }
 
-    return MacroResult.fromMap(maps.first);
+    // Fallback to cache if DB fails or returns empty
+    for (final userCalcs in _calculationsCache.values) {
+      try {
+        final calc = userCalcs.firstWhere((c) => c.id == id);
+        return calc;
+      } catch (_) {
+        // Continue searching other users
+      }
+    }
+    return null;
   }
 
   Future<MacroResult?> getDefaultCalculation({
@@ -463,7 +484,7 @@ class MacroCalculationDB {
     // Try a more direct approach for critical operations
     try {
       // Get a fresh database instance
-      final db = await DatabaseHelper.getInstance();
+      final db = await dbHelper.getInstance();
 
       // Try the operation directly
       final List<Map<String, dynamic>> maps = await db.query(
@@ -502,8 +523,8 @@ class MacroCalculationDB {
 
       // If direct approach fails, try to force recreate the database
       try {
-        await DatabaseHelper.verifyDatabaseWritable();
-        final db = await DatabaseHelper.getInstance();
+        await dbHelper.verifyDatabaseWritable();
+        final db = await dbHelper.getInstance();
 
         // Try the operation again with the fresh database
         final List<Map<String, dynamic>> maps = await db.query(
@@ -597,10 +618,11 @@ class MacroCalculationDB {
     return true;
   }
 
-  Future<int> deleteCalculation(String id) async {
+  Future<bool> deleteCalculation(String id) async {
     print('MacroCalculationDB: Deleting calculation $id');
-    return await executeWithRecovery(
+    final deleted = await executeWithRecovery(
       (db) => db.delete(tableName, where: '$columnId = ?', whereArgs: [id]),
     );
+    return deleted > 0;
   }
 }

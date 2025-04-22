@@ -51,7 +51,7 @@ class UserDB {
 
     while (retryCount < maxRetries) {
       try {
-        final db = await DatabaseHelper.getInstance(dbPath: dbPath);
+        final db = await dbHelper.getInstance();
         return await operation(db);
       } catch (e) {
         final errorMsg = e.toString().toLowerCase();
@@ -64,7 +64,7 @@ class UserDB {
             'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
           );
           try {
-            await DatabaseHelper.verifyDatabaseWritable(dbPath: dbPath);
+            await dbHelper.verifyDatabaseWritable();
             retryCount++;
             await Future.delayed(Duration(milliseconds: 300));
             continue;
