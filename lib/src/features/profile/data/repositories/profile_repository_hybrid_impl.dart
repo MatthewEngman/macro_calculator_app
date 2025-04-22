@@ -403,7 +403,7 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
               try {
                 await _macroDB.insertCalculation(
                   macroResultFromUserInfo.copyWith(isDefault: true),
-                  userId: uid,
+                  uid,
                 );
               } catch (e) {
                 print('Error saving calculation to database: $e');

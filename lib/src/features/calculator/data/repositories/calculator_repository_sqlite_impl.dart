@@ -74,7 +74,7 @@ class CalculatorRepositorySQLiteImpl {
       await _macroCalculationDB.executeWithRecovery((Database db) async {
         await _macroCalculationDB.insertCalculation(
           newResult,
-          userId: _userId!, // Use localUserId
+          _userId!, // Use localUserId
         );
       });
 

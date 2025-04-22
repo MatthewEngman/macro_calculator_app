@@ -51,7 +51,7 @@ class UserDB {
 
     while (retryCount < maxRetries) {
       try {
-        final db = await DatabaseHelper.getInstance(dbPath: dbPath);
+        final db = await dbHelper.getInstance();
         return await operation(db);
       } catch (e) {
         final errorMsg = e.toString().toLowerCase();
@@ -64,16 +64,19 @@ class UserDB {
             'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
           );
           try {
-            await DatabaseHelper.verifyDatabaseWritable(dbPath: dbPath);
+            await dbHelper.verifyDatabaseWritable();
             retryCount++;
             await Future.delayed(Duration(milliseconds: 300));
             continue;
           } catch (recoveryError) {
             print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
-              throw Exception(
-                'Database recovery failed after $maxRetries attempts: $e',
-              );
+              // <--- ADD THIS BLOCK
+              print('Calling forceRecreateDatabase as last resort');
+              await dbHelper.forceRecreateDatabase();
+              // Try one final time after force recreate
+              final db = await dbHelper.getInstance();
+              return await operation(db);
             }
           }
         } else {

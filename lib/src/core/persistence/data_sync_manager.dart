@@ -265,10 +265,7 @@ class DataSyncManager {
         );
 
         if (localCalc.id == null) {
-          await _macroCalculationDB.insertCalculation(
-            remoteCalc,
-            userId: localUserId,
-          );
+          await _macroCalculationDB.insertCalculation(remoteCalc, localUserId);
         } else {
           final localTimestamp = localCalc.lastModified ?? DateTime(1970);
           final remoteTimestamp = remoteCalc.lastModified ?? DateTime(1970);

@@ -235,7 +235,7 @@ Future<void> _migrateUserData(
               updatedCalculation.id!.isNotEmpty) {
             await macroCalculationDB.insertCalculation(
               updatedCalculation,
-              userId: newUserId,
+              newUserId,
             );
             migratedIds.add(calculation.id!);
             print('Migrated macro calculation: ${calculation.id}');
@@ -332,7 +332,7 @@ Future<void> _migrateUserData(
             // Then save the new default
             await macroCalculationDB.insertCalculation(
               macroResult.copyWith(isDefault: true),
-              userId: newUserId,
+              newUserId,
             );
 
             defaultMigrated = true;
