@@ -67,6 +67,11 @@ void main() {
       return mockDatabase;
     });
 
+    // Force verifyDatabaseWritable to always throw
+    when(
+      () => mockDbHelper.verifyDatabaseWritable(),
+    ).thenThrow(Exception('still read-only'));
+
     final result = await userDB.executeWithRecovery((db) async => 123);
     expect(result, 123);
     expect(callCount, 3);
