@@ -152,7 +152,7 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
       // If we got results, sync them to SharedPreferences for backup
       if (results.isNotEmpty) {
         _syncToSharedPreferences(uid);
-        return results;
+        return _filterAndEnsureSingleDefault(results);
       }
 
       // If no results from database, try SharedPreferences
@@ -161,7 +161,7 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
         print(
           'ProfileRepositoryHybridImpl: Using SharedPreferences fallback data',
         );
-        return prefsResults;
+        return _filterAndEnsureSingleDefault(prefsResults);
       }
 
       // If still no results, return empty list
@@ -175,11 +175,89 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
         print(
           'ProfileRepositoryHybridImpl: Using SharedPreferences fallback data after error',
         );
-        return prefsResults;
+        return _filterAndEnsureSingleDefault(prefsResults);
       }
 
       return [];
     }
+  }
+
+  // Helper method to filter out duplicates and ensure only one default macro
+  List<MacroResult> _filterAndEnsureSingleDefault(List<MacroResult> macros) {
+    if (macros.isEmpty) return [];
+
+    // Use a map to track unique IDs
+    final Map<String, MacroResult> uniqueMacros = {};
+    MacroResult? defaultMacro;
+    DateTime? latestDefaultTimestamp;
+
+    // First pass: collect unique macros and find the latest default
+    for (final macro in macros) {
+      final id = macro.id;
+      if (id == null) continue;
+
+      // Store in unique map (most recent version wins)
+      if (uniqueMacros.containsKey(id)) {
+        final existingMacro = uniqueMacros[id]!;
+        final existingTime =
+            existingMacro.timestamp ??
+            existingMacro.lastModified ??
+            DateTime(1970);
+        final newTime = macro.timestamp ?? macro.lastModified ?? DateTime(1970);
+
+        if (newTime.isAfter(existingTime)) {
+          uniqueMacros[id] = macro;
+        }
+      } else {
+        uniqueMacros[id] = macro;
+      }
+
+      // Track the latest default macro
+      if (macro.isDefault == true) {
+        final macroTimestamp =
+            macro.timestamp ?? macro.lastModified ?? DateTime(1970);
+        if (defaultMacro == null ||
+            (latestDefaultTimestamp != null &&
+                macroTimestamp.isAfter(latestDefaultTimestamp))) {
+          defaultMacro = macro;
+          latestDefaultTimestamp = macroTimestamp;
+        }
+      }
+    }
+
+    // Second pass: ensure only one default
+    if (defaultMacro != null) {
+      // Reset all defaults
+      for (final id in uniqueMacros.keys) {
+        final macro = uniqueMacros[id]!;
+        if (macro.isDefault == true && macro.id != defaultMacro!.id) {
+          // Create a copy with isDefault set to false
+          uniqueMacros[id] = macro.copyWith(isDefault: false);
+        }
+      }
+    } else if (uniqueMacros.isNotEmpty) {
+      // If no default was found, set the most recently modified one as default
+      MacroResult mostRecent = uniqueMacros.values.first;
+      DateTime? mostRecentTime =
+          mostRecent.timestamp ?? mostRecent.lastModified;
+
+      for (final macro in uniqueMacros.values) {
+        final macroTime = macro.timestamp ?? macro.lastModified;
+        if (mostRecentTime == null ||
+            (macroTime != null && macroTime.isAfter(mostRecentTime))) {
+          mostRecent = macro;
+          mostRecentTime = macroTime;
+        }
+      }
+
+      // Set the most recent as default
+      uniqueMacros[mostRecent.id!] = mostRecent.copyWith(isDefault: true);
+    }
+
+    print(
+      'ProfileRepositoryHybridImpl: Filtered to ${uniqueMacros.length} unique macros with one default',
+    );
+    return uniqueMacros.values.toList();
   }
 
   @override

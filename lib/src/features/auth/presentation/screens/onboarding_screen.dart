@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:macro_masher/src/core/persistence/repository_providers.dart'
     as persistence;
 import 'package:macro_masher/src/core/persistence/shared_preferences_provider.dart';
+import 'package:macro_masher/src/features/calculator/data/repositories/macro_calculation_db.dart';
 import '../../../profile/domain/entities/user_info.dart'; // Assuming Goal, ActivityLevel, Units are defined here
 import '../../../profile/presentation/providers/settings_provider.dart'; // Assuming sharedPreferencesProvider is defined via this import chain
 import '../../../calculator/presentation/providers/calculator_provider.dart';
@@ -28,8 +29,12 @@ Future<void> completeOnboarding(UserInfo userInfo, WidgetRef ref) async {
       // Continue despite database error - we'll rely on in-memory cache
     } finally {
       // Always mark onboarding as complete, even if database operations fail
+      // Save both with and without user ID for backward compatibility
       await prefs.setBool('onboarding_complete', true);
-      print('Onboarding marked as complete in SharedPreferences');
+      await prefs.setBool('onboarding_complete_$userId', true);
+      print(
+        'Onboarding marked as complete in SharedPreferences for user $userId',
+      );
     }
   }
 }
@@ -78,6 +83,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
     _animationController.forward();
+
+    // Initialize default values
+    _selectedGender = 'male'; // Set default gender
+    _selectedActivityLevel =
+        ActivityLevel.moderatelyActive; // Set default activity level
+    _selectedGoal = Goal.maintain; // Set default goal
+    _selectedUnits = Units.imperial; // Set default units
   }
 
   @override
@@ -92,52 +104,61 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   }
 
   Future<void> _proceedToNextStep() async {
-    // Original logic for proceeding (validation happens inside build methods)
-    await _animationController.reverse();
-
-    setState(() {
-      switch (_currentStep) {
-        case 'welcome':
-          _currentStep = 'personal_info';
-          break;
-        case 'personal_info':
-          // Validation check was originally inside the button press in _buildPersonalInfoStep
-          // Proceeding here relies on that button calling this method *after* validation.
-          _currentStep = 'body_measurements';
-          break;
-        case 'body_measurements':
-          // Validation check was originally inside the button press in _buildBodyMeasurementsStep
-          _currentStep = 'fitness_goals';
-          break;
-        case 'fitness_goals':
-          _currentStep = 'activity_level';
-          break;
-        case 'activity_level':
-          _currentStep = 'complete';
-          break;
-        case 'complete':
-          // This case was calling _finalizeOnboarding in the original code,
-          // but it's better practice for the 'Complete' button to call it.
-          // Keeping original logic flow for now, but the button in
-          // _buildCompletionStep also calls _finalizeOnboarding.
-          // This might lead to double execution if not careful.
-          // For minimal change, let's assume the button is the primary trigger.
-          // _finalizeOnboarding(); // Commenting out based on original structure where button calls it
-          return; // Stay on complete step until button press
+    try {
+      // Simplify animation handling
+      if (_animationController.isAnimating) {
+        return; // Prevent multiple taps while animating
       }
-    });
 
-    _animationController.forward();
+      await _animationController.reverse();
+
+      // Update state after animation completes
+      if (mounted) {
+        setState(() {
+          switch (_currentStep) {
+            case 'welcome':
+              _currentStep = 'personal_info';
+              break;
+            case 'personal_info':
+              _currentStep = 'body_measurements';
+              break;
+            case 'body_measurements':
+              _currentStep = 'fitness_goals';
+              break;
+            case 'fitness_goals':
+              _currentStep = 'activity_level';
+              break;
+            case 'activity_level':
+              _currentStep = 'complete';
+              break;
+            case 'complete':
+              return; // Stay on complete step until button press
+          }
+        });
+      }
+
+      // Forward animation after state update
+      if (mounted) {
+        _animationController.forward();
+      }
+    } catch (e) {
+      print('Error in _proceedToNextStep: $e');
+      // Ensure animation completes even if there's an error
+      if (mounted && !_animationController.isAnimating) {
+        _animationController.forward();
+      }
+    }
   }
 
   Future<void> _finalizeOnboarding() async {
     if (!mounted) return;
 
     try {
+      print("Starting _finalizeOnboarding process");
+
       // Capture all provider references first
       final prefs = ref.read(sharedPreferencesProvider);
       final calculatorNotifier = ref.read(calculatorProvider.notifier);
-      final profileNotifier = ref.read(profileProvider.notifier);
       final auth = ref.read(persistence.firebaseAuthProvider);
       final currentUser = auth.currentUser;
 
@@ -180,7 +201,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       );
 
       // User is authenticated, proceed with saving
-      await completeOnboarding(userInfo, ref);
+      // Use our hybrid approach - try database but also cache in memory
+      try {
+        await completeOnboarding(userInfo, ref);
+        print("Successfully completed onboarding");
+      } catch (e) {
+        print("Error in completeOnboarding: $e");
+        // Continue despite error - we'll handle it with in-memory cache
+      }
 
       // Calculate macros
       final macroResult = calculatorNotifier.calculateMacros();
@@ -197,11 +225,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         print('Saving macro with userId: $userId (anonymous: $isAnonymous)');
 
         // Try to save via the profile notifier (which uses the database)
+        bool savedToDatabase = false;
         try {
-          await profileNotifier.saveMacro(
-            macroWithTimestampAndUserId,
-            userId: userId,
-          );
+          // IMPORTANT: Check if the widget is still mounted before accessing the provider
+          if (mounted) {
+            // Get a fresh reference to the profile notifier to avoid using a disposed one
+            final profileNotifier = ref.read(profileProvider.notifier);
+            await profileNotifier.saveMacro(
+              macroWithTimestampAndUserId,
+              userId: userId,
+            );
+            savedToDatabase = true;
+            print("Successfully saved macro to database");
+          }
         } catch (e) {
           print('Error saving macro via profile notifier: $e');
           // Continue despite error - we'll save directly to SharedPreferences below
@@ -255,51 +291,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
           // Save back to SharedPreferences
           await prefs.setString(key, jsonEncode(macrosList));
-          print(
-            'Successfully saved macro directly to SharedPreferences as fallback',
-          );
+          print('Saved macro calculation to SharedPreferences as fallback');
 
-          // Also save as default_macro for quick access
-          await prefs.setString('default_macro_$userId', jsonEncode(macroJson));
-          print('Saved default macro reference to SharedPreferences');
-        } catch (e) {
-          print('Error saving to SharedPreferences: $e');
-          // Continue despite error - we've tried our best
-        }
-
-        // Reload saved macros to get the updated list with IDs
-        try {
-          await profileNotifier.loadSavedMacros(userId: userId);
-
-          // Get the current state of saved macros
-          final savedMacrosState = ref.read(profileProvider);
-
-          final macrosList = savedMacrosState.value;
-          if (savedMacrosState.hasValue &&
-              macrosList != null &&
-              macrosList.isNotEmpty) {
-            // Get the most recently saved macro (should be the one we just added)
-            final lastSavedMacro = macrosList.last;
-
-            // Set it as the default if it has an ID
-            if (lastSavedMacro.id != null) {
+          // Try to reload saved macros to ensure they're in memory cache
+          try {
+            if (!savedToDatabase && mounted) {
+              // Only do this if we failed to save to the database
+              await MacroCalculationDB().getAllCalculations(userId: userId);
               print(
-                'Setting default macro with ID: ${lastSavedMacro.id} for user: $userId (anonymous: $isAnonymous)',
+                'Reloaded saved macros from SharedPreferences to memory cache',
               );
-              try {
-                await profileNotifier.setDefaultMacro(
-                  lastSavedMacro.id!,
-                  userId,
-                );
-              } catch (e) {
-                print('Error setting default macro: $e');
-                // Continue despite error - we've already saved it as default in SharedPreferences
-              }
             }
+          } catch (e) {
+            print('Error reloading saved macros: $e');
+            // Continue despite error - we've already saved to SharedPreferences
           }
         } catch (e) {
-          print('Error reloading saved macros: $e');
-          // Continue despite error - we've already saved to SharedPreferences
+          print('Error saving to SharedPreferences: $e');
+          // Continue despite error - we'll try to use what we have
         }
       }
 
@@ -352,37 +361,70 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
       // Mark onboarding as complete
       await prefs.setBool('onboarding_complete', true);
+      await prefs.setBool('onboarding_complete_$userId', true);
       print('Onboarding marked as complete in SharedPreferences');
 
       // Force refresh the providers to ensure they pick up the latest data
-      ref.refresh(profileProvider);
+      // IMPORTANT: Check if mounted before refreshing providers
+      if (mounted) {
+        ref.refresh(profileProvider);
 
-      // Add a small delay to ensure all async operations have completed
-      // This gives time for the database and SharedPreferences operations to finish
-      await Future.delayed(const Duration(milliseconds: 800));
+        // Add a small delay to ensure all async operations have completed
+        // This gives time for the database and SharedPreferences operations to finish
+        await Future.delayed(const Duration(milliseconds: 800));
 
-      // Explicitly refresh the defaultMacroProvider to ensure it picks up the latest data
-      ref.refresh(defaultMacroProvider);
+        // Explicitly refresh the defaultMacroProvider to ensure it picks up the latest data
+        ref.refresh(defaultMacroProvider);
+      }
 
       // Check if widget is still mounted before navigating
       if (mounted) {
         // Use Future.microtask to ensure navigation happens after the current build cycle
         Future.microtask(() {
           if (mounted && context.mounted) {
+            print("Navigating to dashboard");
             context.go('/');
           }
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Handle any errors that might occur during saving
+      print('Error in _finalizeOnboarding: $e');
+      print('Stack trace: $stackTrace');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving profile: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error saving profile: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
-      print('Error in _finalizeOnboarding: $e');
+
+      // Even if there's an error, try to mark onboarding as complete and navigate
+      try {
+        if (mounted) {
+          final prefs = ref.read(sharedPreferencesProvider);
+          final auth = ref.read(persistence.firebaseAuthProvider);
+          final userId = auth.currentUser?.uid;
+
+          if (userId != null) {
+            await prefs.setBool('onboarding_complete', true);
+            await prefs.setBool('onboarding_complete_$userId', true);
+            print('Marked onboarding as complete despite error');
+          }
+
+          if (mounted && context.mounted) {
+            Future.delayed(Duration(milliseconds: 500), () {
+              context.go('/');
+            });
+          }
+        }
+      } catch (e2) {
+        print('Error in fallback navigation: $e2');
+      }
     }
-  } // <<< Closing brace for _finalizeOnboarding method
+  }
 
   // --- Methods moved outside _finalizeOnboarding ---
   // These methods are now correctly placed within the class scope.
@@ -431,9 +473,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         children: [
           TextFormField(
             controller: _nameController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Name',
               prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -441,13 +486,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               }
               return null;
             },
+            style: TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _ageController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Age',
               prefixIcon: Icon(Icons.cake),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             keyboardType: TextInputType.number,
             validator: (value) {
@@ -459,12 +508,17 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               }
               return null;
             },
+            style: TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Sex',
               prefixIcon: Icon(Icons.people),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
             value: _selectedGender,
             items: const [
@@ -472,9 +526,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               DropdownMenuItem(value: 'female', child: Text('Female')),
             ],
             onChanged: (value) {
-              setState(() {
-                _selectedGender = value;
-              });
+              if (value != null) {
+                setState(() {
+                  _selectedGender = value;
+                });
+              }
             },
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -482,23 +538,33 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               }
               return null;
             },
+            style: TextStyle(fontSize: 16),
+            dropdownColor: Theme.of(context).colorScheme.surface,
+            icon: Icon(
+              Icons.arrow_drop_down,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            isExpanded: true,
           ),
           const SizedBox(height: 48),
           Center(
-            child: FilledButton(
+            child: ElevatedButton(
               onPressed: () {
                 // Original validation logic placement
                 if (_personalInfoFormKey.currentState!.validate()) {
                   _proceedToNextStep();
                 }
               },
-              style: FilledButton.styleFrom(
+              style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   vertical: 16,
                   horizontal: 32,
                 ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('Continue'),
+              child: Text('Continue', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -599,6 +665,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       ? 'Weight (lbs)'
                       : 'Weight (kg)',
               prefixIcon: const Icon(Icons.monitor_weight),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             keyboardType: TextInputType.number,
             validator: (value) {
@@ -610,6 +679,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               }
               return null;
             },
+            style: TextStyle(fontSize: 16),
           ),
           const SizedBox(height: 16),
 
@@ -620,9 +690,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 Expanded(
                   child: TextFormField(
                     controller: _heightFeetController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Height (feet)',
-                      prefixIcon: Icon(Icons.height),
+                      prefixIcon: const Icon(Icons.height),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
@@ -634,6 +707,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       }
                       return null;
                     },
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -652,6 +726,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       }
                       return null;
                     },
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
               ],
@@ -662,9 +737,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 Expanded(
                   child: TextFormField(
                     controller: _heightFeetController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Height (meters)',
-                      prefixIcon: Icon(Icons.height),
+                      prefixIcon: const Icon(Icons.height),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                     keyboardType: TextInputType.number,
                     validator: (value) {
@@ -676,6 +754,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       }
                       return null;
                     },
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -694,25 +773,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       }
                       return null;
                     },
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
               ],
             ),
           const SizedBox(height: 48),
           Center(
-            child: FilledButton(
+            child: ElevatedButton(
               onPressed: () {
                 if (_measurementsFormKey.currentState!.validate()) {
                   _proceedToNextStep();
                 }
               },
-              style: FilledButton.styleFrom(
+              style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   vertical: 16,
                   horizontal: 32,
                 ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: const Text('Continue'),
+              child: Text('Continue', style: TextStyle(fontSize: 16)),
             ),
           ),
         ],
@@ -806,12 +889,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
         const SizedBox(height: 48),
         Center(
-          child: FilledButton(
+          child: ElevatedButton(
             onPressed: _proceedToNextStep,
-            style: FilledButton.styleFrom(
+            style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Continue'),
+            child: Text('Continue', style: TextStyle(fontSize: 16)),
           ),
         ),
       ],
@@ -939,12 +1025,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         // Note: Original code did not have a UI element for extraActive
         const SizedBox(height: 48),
         Center(
-          child: FilledButton(
+          child: ElevatedButton(
             onPressed: _proceedToNextStep, // No form validation on this step
-            style: FilledButton.styleFrom(
+            style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            child: const Text('Continue'),
+            child: Text('Continue', style: TextStyle(fontSize: 16)),
           ),
         ),
       ],
@@ -1053,12 +1142,89 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 48),
-        FilledButton(
-          onPressed: _finalizeOnboarding, // Button triggers final action
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+        SizedBox(
+          width: 220, // Set a fixed width
+          height: 50, // Set a fixed height
+          child: FilledButton(
+            onPressed: () {
+              print("Completion button pressed - DIRECT APPROACH");
+
+              // Show loading indicator
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Finalizing your profile...'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+
+              // Mark onboarding as complete immediately to prevent navigation loops
+              ref
+                  .read(sharedPreferencesProvider)
+                  .setBool('onboarding_complete', true)
+                  .then((_) {
+                    print("Onboarding marked as complete - DIRECT APPROACH");
+
+                    // Then finalize the onboarding data
+                    _finalizeOnboarding()
+                        .then((_) {
+                          print(
+                            "Finalization completed successfully - DIRECT APPROACH",
+                          );
+
+                          // Force navigation after a short delay
+                          if (mounted && context.mounted) {
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              print(
+                                "Forcing navigation to dashboard - DIRECT APPROACH",
+                              );
+                              context.go('/');
+                            });
+                          }
+                        })
+                        .catchError((error) {
+                          print(
+                            "Error in finalization, but continuing - DIRECT APPROACH: $error",
+                          );
+
+                          // Even if there's an error, still navigate to dashboard
+                          if (mounted && context.mounted) {
+                            Future.delayed(Duration(milliseconds: 300), () {
+                              print(
+                                "Forcing navigation despite error - DIRECT APPROACH",
+                              );
+                              context.go('/');
+                            });
+                          }
+                        });
+                  })
+                  .catchError((error) {
+                    print(
+                      "Error marking onboarding complete - DIRECT APPROACH: $error",
+                    );
+                    // Still try to navigate even if preferences fail
+                    if (mounted && context.mounted) {
+                      Future.delayed(Duration(milliseconds: 300), () {
+                        print(
+                          "Forcing navigation despite preferences error - DIRECT APPROACH",
+                        );
+                        context.go('/');
+                      });
+                    }
+                  });
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Go to Dashboard',
+              style: TextStyle(fontSize: 16),
+            ),
           ),
-          child: const Text('Go to Dashboard'),
         ),
       ],
     );
@@ -1096,12 +1262,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 64),
-        FilledButton(
-          onPressed: _proceedToNextStep, // No validation needed
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+        SizedBox(
+          width: 200, // Set a fixed width
+          height: 50, // Set a fixed height
+          child: FilledButton(
+            onPressed: () {
+              print("Welcome button pressed - SUPER DIRECT APPROACH");
+
+              // Skip animation and directly update the state
+              if (mounted) {
+                setState(() {
+                  _currentStep = 'personal_info';
+                });
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Get Started', style: TextStyle(fontSize: 16)),
           ),
-          child: const Text('Get Started'),
         ),
       ],
     );

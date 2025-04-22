@@ -16,29 +16,65 @@ import '../../shared/widgets/app_scaffold.dart';
 import '../../features/auth/presentation/screens/onboarding_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/progress/presentation/screens/progress_screen.dart';
+import '../../core/persistence/shared_preferences_provider.dart';
 
 final appRouter = GoRouter(
   navigatorKey: GlobalKey<NavigatorState>(),
   debugLogDiagnostics: true, // Enable logging for debugging
   initialLocation: '/signin', // Set initial route to sign-in page
   redirect: (context, state) {
-    // Get the current auth state
-    final authState = ProviderScope.containerOf(
-      context,
-    ).read(authStateChangesProvider);
+    // Get the current auth state and onboarding status
+    final container = ProviderScope.containerOf(context);
+    final authState = container.read(authStateChangesProvider);
+
+    // Check if onboarding is completed for the current user
+    bool isOnboardingCompleted = false;
+    String? currentUserId;
+
+    authState.whenData((user) {
+      if (user != null) {
+        currentUserId = user.uid;
+        // Check both user-specific and general onboarding flags
+        final prefs = container.read(sharedPreferencesProvider);
+        final userSpecificKey = 'onboarding_complete_${user.uid}';
+        final generalKey = 'onboarding_complete';
+
+        isOnboardingCompleted =
+            prefs.getBool(userSpecificKey) ??
+            prefs.getBool(generalKey) ??
+            false;
+
+        print(
+          'Router: User ${user.uid} onboarding complete: $isOnboardingCompleted',
+        );
+      }
+    });
+
+    // IMPORTANT: Check if we're already on the onboarding screen
+    final isOnOnboardingScreen = state.uri.path == '/onboarding';
 
     return authState.when(
       data: (user) {
-        // If user is authenticated and trying to access the sign-in page,
-        // redirect to the home page
-        if (user != null && state.uri.path == '/signin') {
-          return '/';
-        }
-
         // If user is not authenticated and not on sign-in page,
         // redirect to sign-in
         if (user == null && state.uri.path != '/signin') {
+          print('Router: Not authenticated, redirecting to sign-in');
           return '/signin';
+        }
+
+        // If user is authenticated
+        if (user != null) {
+          // If onboarding is not complete and not already on onboarding screen
+          if (!isOnboardingCompleted && !isOnOnboardingScreen) {
+            print('Router: Redirecting to onboarding (not complete)');
+            return '/onboarding';
+          }
+
+          // If trying to access sign-in while authenticated and onboarding is complete
+          if (state.uri.path == '/signin' && isOnboardingCompleted) {
+            print('Router: Already authenticated, redirecting to dashboard');
+            return '/';
+          }
         }
 
         // No redirection needed
