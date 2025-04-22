@@ -28,8 +28,13 @@ class DatabaseHelper {
   static const columnUpdatedAt = 'updated_at';
   static const _databaseName = "app_database.db";
   static const _databaseVersion = 3;
+  static int get databaseVersion => _databaseVersion;
 
   static Database? _database;
+
+  static void resetForTest() {
+    _database = null;
+  }
 
   /// Get the current database instance or initialize a new one if needed
   static Future<Database> getInstance() async {

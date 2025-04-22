@@ -106,5 +106,92 @@ void main() {
         verify(() => mockSyncService.getSavedUserInfos('test_user')).called(1);
       },
     );
+    test(
+      'getSavedMacros returns empty list when FirestoreSyncService.getSavedUserInfos returns empty',
+      () async {
+        when(
+          () => mockSyncService.getSavedUserInfos(any()),
+        ).thenAnswer((_) async => []);
+        final result = await repository.getSavedMacros(userId: 'test_user');
+        expect(result, isEmpty);
+        verify(() => mockSyncService.getSavedUserInfos('test_user')).called(1);
+      },
+    );
+    test(
+      'getSavedMacros returns all MacroResults from multiple UserInfos',
+      () async {
+        final userInfo2 = userInfo.copyWith(id: 'test_user2', name: 'Test2');
+        when(
+          () => mockSyncService.getSavedUserInfos(any()),
+        ).thenAnswer((_) async => [userInfo, userInfo2]);
+        final result = await repository.getSavedMacros(userId: 'test_user');
+        expect(result.length, 2);
+        expect(result[1].name, 'Test2');
+        verify(() => mockSyncService.getSavedUserInfos('test_user')).called(1);
+      },
+    );
+    test('getSavedMacros skips corrupted UserInfo objects', () async {
+      // Simulate a corrupted UserInfo (e.g., missing required fields)
+      final corruptedUserInfo = userInfo.copyWith(id: null, name: null);
+      when(
+        () => mockSyncService.getSavedUserInfos(any()),
+      ).thenAnswer((_) async => [userInfo, corruptedUserInfo]);
+      final result = await repository.getSavedMacros(userId: 'test_user');
+      // Should only include the valid one
+      expect(result.length, 1);
+      expect(result.first.name, userInfo.name);
+    });
+
+    test(
+      'deleteMacro calls FirestoreSyncService.deleteUserInfo with correct parameters',
+      () async {
+        when(
+          () => mockSyncService.deleteUserInfo(any(), any()),
+        ).thenAnswer((_) async => Future.value());
+        await repository.deleteMacro('macro_id', userId: 'test_user');
+        verify(
+          () => mockSyncService.deleteUserInfo('test_user', 'macro_id'),
+        ).called(1);
+      },
+    );
+
+    test(
+      'setDefaultMacro calls FirestoreSyncService.setDefaultUserInfo with correct parameters',
+      () async {
+        when(
+          () => mockSyncService.setDefaultUserInfo(any(), any()),
+        ).thenAnswer((_) async => Future.value());
+        await repository.setDefaultMacro('macro_id', userId: 'test_user');
+        verify(
+          () => mockSyncService.setDefaultUserInfo('test_user', 'macro_id'),
+        ).called(1);
+      },
+    );
+
+    test(
+      'getSavedMacros throws or handles gracefully when userId is null',
+      () async {
+        // If your method is supposed to throw:
+        expect(
+          () async => await repository.getSavedMacros(userId: null),
+          throwsA(isA<Exception>()),
+        );
+        // Or, if it should return an empty list:
+        // final result = await repository.getSavedMacros(userId: null);
+        // expect(result, isEmpty);
+      },
+    );
+
+    test(
+      'saveMacro throws or handles gracefully when MacroResult is missing required fields',
+      () async {
+        final invalidMacro = macroResult.copyWith(userId: null);
+        expect(
+          () async =>
+              await repository.saveMacro(invalidMacro, userId: 'test_user'),
+          throwsA(isA<Exception>()),
+        );
+      },
+    );
   });
 }
