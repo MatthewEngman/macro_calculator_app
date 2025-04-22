@@ -71,9 +71,12 @@ class UserDB {
           } catch (recoveryError) {
             print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
-              throw Exception(
-                'Database recovery failed after $maxRetries attempts: $e',
-              );
+              // <--- ADD THIS BLOCK
+              print('Calling forceRecreateDatabase as last resort');
+              await dbHelper.forceRecreateDatabase();
+              // Try one final time after force recreate
+              final db = await dbHelper.getInstance();
+              return await operation(db);
             }
           }
         } else {
