@@ -2,105 +2,81 @@ import 'package:sqflite/sqflite.dart';
 import 'package:macro_masher/src/features/profile/domain/entities/user_info.dart';
 import 'package:macro_masher/src/core/persistence/database_helper.dart';
 
+/// Abstract class for database helper to allow for dependency injection and mocking
+abstract class IDatabaseHelper {
+  Future<Database> getInstance();
+  Future<void> forceRecreateDatabase();
+  Future<void> verifyDatabaseWritable();
+  Future<void> close();
+}
+
+/// Default implementation that delegates to the static DatabaseHelper methods
+class DatabaseHelperWrapper implements IDatabaseHelper {
+  final String? dbPath;
+  DatabaseHelperWrapper({this.dbPath});
+
+  @override
+  Future<Database> getInstance() => DatabaseHelper.getInstance(dbPath: dbPath);
+
+  @override
+  Future<void> forceRecreateDatabase() =>
+      DatabaseHelper.forceRecreateDatabase(dbPath: dbPath);
+
+  @override
+  Future<void> verifyDatabaseWritable() =>
+      DatabaseHelper.verifyDatabaseWritable(dbPath: dbPath);
+
+  @override
+  Future<void> close() => DatabaseHelper.close();
+}
+
 /// Database helper class for User operations
 class UserDB {
   static const String tableName = 'users';
   static const String columnIsDefault = 'is_default';
 
-  UserDB();
+  final IDatabaseHelper dbHelper;
+
+  // Constructor with dependency injection and custom dbPath
+  UserDB({IDatabaseHelper? dbHelper, String? dbPath})
+    : dbHelper = dbHelper ?? DatabaseHelperWrapper(dbPath: dbPath);
 
   /// Execute a database operation with recovery attempts if the database is in read-only mode
   Future<T> executeWithRecovery<T>(
-    Future<T> Function(Database db) dbOperation,
-  ) async {
+    Future<T> Function(Database db) operation, {
+    String? dbPath,
+  }) async {
     int retryCount = 0;
-    const int maxRetries = 3;
-    bool forceRecreate = false;
+    const maxRetries = 3;
 
     while (retryCount < maxRetries) {
       try {
-        // If we've already tried normal recovery and it failed, use more aggressive approach
-        if (forceRecreate) {
-          print('Using aggressive database recovery strategy');
-          await DatabaseHelper.forceRecreateDatabase();
-          forceRecreate = false; // Reset flag after attempting recreation
-        }
-
-        // Always get the latest database instance
-        final db = await DatabaseHelper.getInstance();
-        return await dbOperation(db);
+        final db = await DatabaseHelper.getInstance(dbPath: dbPath);
+        return await operation(db);
       } catch (e) {
-        // Check if this is a read-only error
-        if (e.toString().contains('read-only')) {
-          print('Database error in executeWithRecovery: $e');
+        final errorMsg = e.toString().toLowerCase();
+        print('Database error in executeWithRecovery: $e');
+
+        if (errorMsg.contains('read-only') ||
+            errorMsg.contains('database_closed') ||
+            errorMsg.contains('database is closed')) {
           print(
             'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
           );
-
           try {
-            // Get a fresh database instance with recovery if needed
-            await DatabaseHelper.verifyDatabaseWritable();
-
-            // If this is the second retry and we're still having issues,
-            // mark for aggressive recovery on next attempt
-            if (retryCount >= 1) {
-              forceRecreate = true;
-            }
-
+            await DatabaseHelper.verifyDatabaseWritable(dbPath: dbPath);
             retryCount++;
-
-            // Small delay before retry to allow system to stabilize
             await Future.delayed(Duration(milliseconds: 300));
-            continue; // Retry the operation with the recovered database
+            continue;
           } catch (recoveryError) {
             print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
-              // On final attempt, try the most aggressive recovery
-              try {
-                print(
-                  'Force recreate requested - implementing aggressive recovery strategy',
-                );
-                await DatabaseHelper.forceRecreateDatabase();
-                // One final attempt with the recreated database
-                try {
-                  // Always get the latest database instance
-                  final db = await DatabaseHelper.getInstance();
-                  return await dbOperation(db);
-                } catch (finalAttemptError) {
-                  print(
-                    'Final attempt failed after database recreation: $finalAttemptError',
-                  );
-                  throw Exception(
-                    'Database operation failed after complete recreation: $finalAttemptError',
-                  );
-                }
-              } catch (recreateError) {
-                print('Database recreation failed: $recreateError');
-                throw Exception(
-                  'Database recovery failed after $maxRetries attempts: $e',
-                );
-              }
+              throw Exception(
+                'Database recovery failed after $maxRetries attempts: $e',
+              );
             }
           }
-        } else if (e.toString().contains('FOREIGN KEY constraint failed')) {
-          // Special handling for foreign key constraint failures
-          print('Foreign key constraint error: $e');
-
-          // Try to fix the constraint issue by ensuring the related record exists
-          try {
-            // This is a placeholder - you'll need to implement specific logic based on your schema
-            await _attemptForeignKeyRepair();
-            retryCount++;
-            continue;
-          } catch (repairError) {
-            print('Foreign key repair failed: $repairError');
-            // Continue with normal retry flow
-          }
-
-          retryCount++;
-          continue;
         } else {
-          // For other errors, just rethrow
           rethrow;
         }
       }
@@ -108,18 +84,6 @@ class UserDB {
     }
 
     throw Exception('Database operation failed after $maxRetries attempts');
-  }
-
-  /// Attempt to repair foreign key constraint issues
-  /// This is a placeholder method that should be implemented based on your specific schema
-  Future<void> _attemptForeignKeyRepair() async {
-    // Example implementation:
-    // 1. Identify which foreign key constraint failed
-    // 2. Insert the missing parent record if possible
-    // 3. Or modify the operation to avoid the constraint
-
-    // For now, just add a delay to allow any concurrent operations to complete
-    await Future.delayed(Duration(milliseconds: 500));
   }
 
   /// Creates the users table in the database
