@@ -51,10 +51,8 @@ class LocalStorageService {
           try {
             // Get a fresh database instance with recovery if needed
             // Use force recreation on the last retry attempt
-            final forceRecreate = retryCount >= maxRetries - 1;
-            await DatabaseHelper.verifyDatabaseWritable(
-              forceRecreate: forceRecreate,
-            );
+
+            await DatabaseHelper.verifyDatabaseWritable();
             retryCount++;
 
             // Small delay before retry to allow system to stabilize

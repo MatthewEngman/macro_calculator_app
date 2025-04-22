@@ -60,7 +60,7 @@ class MacroCalculationDB {
           try {
             // Get a fresh database instance with aggressive recovery
             // Always use force recreation for read-only errors
-            await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+            await DatabaseHelper.verifyDatabaseWritable();
 
             retryCount++;
 
@@ -179,7 +179,7 @@ class MacroCalculationDB {
 
       // If direct approach fails, try to force recreate the database
       try {
-        await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+        await DatabaseHelper.verifyDatabaseWritable();
         final db = await DatabaseHelper.getInstance();
 
         // Try the operation again with the fresh database
@@ -502,7 +502,7 @@ class MacroCalculationDB {
 
       // If direct approach fails, try to force recreate the database
       try {
-        await DatabaseHelper.verifyDatabaseWritable(forceRecreate: true);
+        await DatabaseHelper.verifyDatabaseWritable();
         final db = await DatabaseHelper.getInstance();
 
         // Try the operation again with the fresh database

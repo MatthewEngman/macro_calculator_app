@@ -1,9 +1,8 @@
 import 'dart:io';
-import 'package:sqflite/sqflite.dart';
+import 'package:macro_masher/src/features/meal_plan/data/meal_plan_db.dart';
 import 'package:path/path.dart';
-import '../../features/meal_plan/data/meal_plan_db.dart';
-import '../../features/profile/data/repositories/user_db.dart';
-import '../../features/meal_plan/data/meal_log_db.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DatabaseHelper {
   static const tableSettings = 'settings';
@@ -36,8 +35,15 @@ class DatabaseHelper {
     _database = null;
   }
 
+  static Future<void> close() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
   /// Get the current database instance or initialize a new one if needed
-  static Future<Database> getInstance() async {
+  static Future<Database> getInstance({String? dbPath}) async {
     if (_database != null) {
       try {
         // Quick test to see if the database is still writable
@@ -46,13 +52,31 @@ class DatabaseHelper {
       } catch (e) {
         print('Database instance check failed: $e');
         // Continue to recreation
+        await close();
       }
     }
 
     print('Getting new database instance...');
 
     try {
-      // Force recreate the database every time to avoid read-only issues
+      // If a dbPath is provided (e.g., inMemoryDatabasePath for tests), use it
+      if (dbPath != null) {
+        print('Opening database at custom path: $dbPath');
+        _database = await databaseFactory.openDatabase(
+          dbPath,
+          options: OpenDatabaseOptions(
+            version: _databaseVersion,
+            onCreate: _onCreate,
+            onUpgrade: _onUpgrade,
+            onConfigure: _onConfigure,
+            singleInstance: true,
+          ),
+        );
+        print('DatabaseHelper: Database instance updated (custom path)');
+        return _database!;
+      }
+
+      // Otherwise, use the normal file-based path and recovery logic
       return await _recreateDatabaseCompletely();
     } catch (e) {
       print('Error getting database instance: $e');
@@ -71,7 +95,6 @@ class DatabaseHelper {
     if (_database != null && _database!.isOpen) {
       return _database!;
     }
-
     // Database is either null or closed, so we need to initialize it
     return await _initDatabase();
   }
@@ -131,17 +154,20 @@ class DatabaseHelper {
     if (_database != null && _database!.isOpen) {
       await _database!.close();
       _database = null;
+      print('DatabaseHelper: Database closed');
     }
   }
 
-  /// Force reopen the database
-  static Future<Database> reopenDatabase() async {
-    await closeDatabase();
-    return await getInstance();
-  }
-
   /// Force recreate the database completely - use this as a last resort for persistent database issues
-  static Future<Database> forceRecreateDatabase() async {
+  static Future<Database> forceRecreateDatabase({String? dbPath}) async {
+    // If using an in-memory database, just reset the static instance and return a new one
+    if (dbPath != null &&
+        (dbPath == ':memory:' || dbPath == inMemoryDatabasePath)) {
+      print('forceRecreateDatabase: No-op for in-memory database');
+      _database = null;
+      return await getInstance(dbPath: dbPath);
+    }
+
     print(
       'Force recreate requested - implementing aggressive recovery strategy',
     );
@@ -152,8 +178,8 @@ class DatabaseHelper {
       // If complete recreation fails, try one more approach with explicit deletion
       await closeDatabase();
 
-      final databasePath = await getDatabasesPath();
-      final path = join(databasePath, _databaseName);
+      // Use the provided dbPath if available, otherwise default to the standard path
+      final path = dbPath ?? join(await getDatabasesPath(), _databaseName);
 
       try {
         // Delete all related database files
@@ -190,21 +216,11 @@ class DatabaseHelper {
         // Configure with minimal constraints
         await _database!.execute('PRAGMA journal_mode = DELETE');
         await _database!.execute('PRAGMA synchronous = OFF');
-        await _database!.execute('PRAGMA locking_mode = NORMAL');
 
-        // Test write capability
-        await _database!.execute(
-          'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
-        );
-        await _database!.execute(
-          'INSERT INTO _write_test_table (id) VALUES (${DateTime.now().millisecondsSinceEpoch})',
-        );
-        await _database!.execute('DROP TABLE IF EXISTS _write_test_table');
-
-        print('Database successfully recreated with minimal constraints');
+        print('DatabaseHelper: Database recreated with minimal constraints');
         return _database!;
-      } catch (finalError) {
-        print('All database recovery attempts failed: $finalError');
+      } catch (finalAttemptError) {
+        print('Final attempt to recreate database failed: $finalAttemptError');
         rethrow;
       }
     }
@@ -212,55 +228,17 @@ class DatabaseHelper {
 
   /// Verifies that the database is writable and attempts to recover if it's not.
   /// This is a more aggressive approach that will delete and recreate the database if needed.
-  static Future<Database> verifyDatabaseWritable({
-    bool forceRecreate = false,
-  }) async {
-    print('Database write test starting...');
-
+  static Future<Database> verifyDatabaseWritable({String? dbPath}) async {
     try {
-      // If forceRecreate is true, skip the tests and go straight to recreation
-      if (forceRecreate) {
-        print(
-          'Force recreate requested - implementing aggressive recovery strategy',
-        );
-        return await _recreateDatabaseCompletely();
-      }
-
-      // First try a simple write test
-      if (_database != null) {
-        try {
-          await _database!.rawQuery('PRAGMA journal_mode = DELETE');
-
-          // Use a random ID to avoid UNIQUE constraint violations
-          final testId = DateTime.now().millisecondsSinceEpoch;
-
-          // First drop the test table if it exists to avoid constraint violations
-          await _database!.rawQuery('DROP TABLE IF EXISTS _write_test_table');
-
-          // Then create it fresh and test write operations
-          await _database!.rawQuery(
-            'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
-          );
-          await _database!.rawQuery(
-            'INSERT INTO _write_test_table (id) VALUES ($testId)',
-          );
-          await _database!.rawQuery(
-            'DELETE FROM _write_test_table WHERE id = $testId',
-          );
-          await _database!.rawQuery('DROP TABLE IF EXISTS _write_test_table');
-          print('Database write test successful via direct operations');
-          return _database!;
-        } catch (e) {
-          print('Database write test failed: $e');
-          // Continue to recovery
-        }
-      }
-
-      // If we get here, the database is not writable or doesn't exist
-      return await _recreateDatabaseCompletely();
+      final db = await getInstance(dbPath: dbPath);
+      await db.execute(
+        'CREATE TABLE IF NOT EXISTS _write_test_table (id INTEGER PRIMARY KEY)',
+      );
+      await db.execute('DROP TABLE IF EXISTS _write_test_table');
+      return db;
     } catch (e) {
-      print('Database recovery failed: $e');
-      rethrow;
+      print('Database not writable, attempting recovery: $e');
+      return await forceRecreateDatabase(dbPath: dbPath);
     }
   }
 
