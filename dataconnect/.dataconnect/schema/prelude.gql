@@ -157,14 +157,14 @@ input Int_Filter {
   "When true, match if field `IS NULL`. When false, match if field is `NOT NULL`."
   isNull: Boolean
   "Match if field is exactly equal to provided value."
-  eq: Int
+  eq: Int @fdc_oneOf(group: "eq")
   """
   Match if field is exactly equal to the result of the provided server value
   expression.
   """
   eq_expr: Int_Expr @fdc_oneOf(group: "eq")
   "Match if field is not equal to provided value."
-  ne: Int
+  ne: Int @fdc_oneOf(group: "ne")
   """
   Match if field is not equal to the result of the provided server value
   expression.
@@ -175,28 +175,28 @@ input Int_Filter {
   "Match if field value is not among the provided list of values."
   nin: [Int!]
   "Match if field value is greater than the provided value."
-  gt: Int
+  gt: Int @fdc_oneOf(group: "gt")
   """
   Match if field value is greater than the result of the provided server value
   expression.
   """
   gt_expr: Int_Expr @fdc_oneOf(group: "gt")
   "Match if field value is greater than or equal to the provided value."
-  ge: Int
+  ge: Int @fdc_oneOf(group: "ge")
   """
   Match if field value is greater than or equal to the result of the provided
   server value expression.
   """
   ge_expr: Int_Expr @fdc_oneOf(group: "ge")
   "Match if field value is less than the provided value."
-  lt: Int
+  lt: Int @fdc_oneOf(group: "lt")
   """
   Match if field value is less than the result of the provided server value
   expression.
   """
   lt_expr: Int_Expr @fdc_oneOf(group: "lt")
   "Match if field value is less than or equal to the provided value."
-  le: Int
+  le: Int @fdc_oneOf(group: "le")
   """
   Match if field value is less than or equal to the result of the provided
   server value expression.
@@ -221,21 +221,51 @@ input Int64_Filter {
   "When true, match if field `IS NULL`. When false, match if field is `NOT NULL`."
   isNull: Boolean
   "Match if field is exactly equal to provided value."
-  eq: Int64
+  eq: Int64 @fdc_oneOf(group: "eq")
+  """
+  Match if field is exactly equal to the result of the provided server value
+  expression.
+  """
+  eq_expr: Int64_Expr @fdc_oneOf(group: "eq")
   "Match if field is not equal to provided value."
-  ne: Int64
+  ne: Int64 @fdc_oneOf(group: "ne")
+  """
+  Match if field is not equal to the result of the provided server value
+  expression.
+  """
+  ne_expr: Int64_Expr @fdc_oneOf(group: "ne")
   "Match if field value is among the provided list of values."
   in: [Int64!]
   "Match if field value is not among the provided list of values."
   nin: [Int64!]
   "Match if field value is greater than the provided value."
-  gt: Int64
+  gt: Int64 @fdc_oneOf(group: "gt")
+  """
+  Match if field value is greater than the result of the provided server value
+  expression.
+  """
+  gt_expr: Int64_Expr @fdc_oneOf(group: "gt")
   "Match if field value is greater than or equal to the provided value."
-  ge: Int64
+  ge: Int64 @fdc_oneOf(group: "ge")
+  """
+  Match if field value is greater than or equal to the result of the provided
+  server value expression.
+  """
+  ge_expr: Int64_Expr @fdc_oneOf(group: "ge")
   "Match if field value is less than the provided value."
-  lt: Int64
+  lt: Int64 @fdc_oneOf(group: "lt")
+  """
+  Match if field value is less than the result of the provided server value
+  expression.
+  """
+  lt_expr: Int64_Expr @fdc_oneOf(group: "lt")
   "Match if field value is less than or equal to the provided value."
-  le: Int64
+  le: Int64 @fdc_oneOf(group: "le")
+  """
+  Match if field value is less than or equal to the result of the provided
+  server value expression.
+  """
+  le_expr: Int64_Expr @fdc_oneOf(group: "le")
 }
 
 "Query filter criteria for `[Int64!]` scalar fields."
@@ -699,6 +729,17 @@ scalar Int_Expr
   @fdc_forbiddenAsFieldType
   @fdc_example(value: "2 * 4", description: "Evaluates to 8.")
   @fdc_example(value: "vars.foo.size()", description: "Assuming `vars.foo` is a string, it will evaluate to the length of the string.")
+
+
+"""
+A Common Expression Language (CEL) expression that returns a Int64 at runtime.
+"""
+scalar Int64_Expr
+  @specifiedBy(url: "https://github.com/google/cel-spec")
+  @fdc_celExpression(returnType: "int64")
+  @fdc_forbiddenAsVariableType
+  @fdc_forbiddenAsFieldType
+  @fdc_example(value: "5000*1000*1000", description: "Evaluates to 5e9.")
 
 """
 A Common Expression Language (CEL) expression that returns a Float at runtime.
@@ -1616,7 +1657,7 @@ input Timestamp_ListFilter {
   excludesAll: [Timestamp!]
 }
 
-"Update input of a `Date` value."
+"Update input of a `Date` value. Only one of `inc` or `dec` may be specified."
 input Date_Update {
   "Increment the field by a provided duration."
   inc: Date_Duration @fdc_oneOf
@@ -1624,7 +1665,7 @@ input Date_Update {
   dec: Date_Duration @fdc_oneOf
 }
 
-"Update input of a `Date` list value."
+"Update input of a `Date` list value. Only one of `append` or `prepend` may be specified."
 input Date_ListUpdate {
   "Append the provided `Date` values to the existing list."
   append: [Date!] @fdc_oneOf
@@ -1632,7 +1673,7 @@ input Date_ListUpdate {
   prepend: [Date!] @fdc_oneOf
 }
 
-"Update input of a `Timestamp` value."
+"Update input of a `Timestamp` value. Only one of `inc` or `dec` may be specified."
 input Timestamp_Update {
   "Increment the field by a provided duration."
   inc: Timestamp_Duration @fdc_oneOf
@@ -1640,7 +1681,7 @@ input Timestamp_Update {
   dec: Timestamp_Duration @fdc_oneOf
 }
 
-"Update input of an `Timestamp` list value."
+"Update input of an `Timestamp` list value. Only one of `append` or `prepend` may be specified."
 input Timestamp_ListUpdate {
   "Append the provided `Timestamp` values to the existing list."
   append: [Timestamp!] @fdc_oneOf
@@ -1733,7 +1774,7 @@ enum Date_Interval @fdc_forbiddenAsFieldType {
   YEAR
 }
 
-"Update input of a `String` list value."
+"Update input of a `String` list value. Only one of `append` or `prepend` may be specified."
 input String_ListUpdate {
   "Append the provided values to the existing list."
   append: [String!] @fdc_oneOf
@@ -1741,7 +1782,7 @@ input String_ListUpdate {
   prepend: [String!] @fdc_oneOf
 }
 
-"Update input of an `ID` list value."
+"Update input of an `ID` list value. Only one of `append` or `prepend` may be specified."
 input UUID_ListUpdate {
   "Append the provided UUIDs to the existing list."
   append: [UUID!] @fdc_oneOf
@@ -1749,7 +1790,7 @@ input UUID_ListUpdate {
   prepend: [UUID!] @fdc_oneOf
 }
 
-"Update input of an `Int` value."
+"Update input of an `Int` value. Only one of `inc` or `dec` may be specified."
 input Int_Update {
   "Increment the field by a provided value."
   inc: Int @fdc_oneOf
@@ -1757,7 +1798,7 @@ input Int_Update {
   dec: Int @fdc_oneOf
 }
 
-"Update input of an `Int` list value."
+"Update input of an `Int` list value. Only one of `append` or `prepend` may be specified."
 input Int_ListUpdate {
   "Append the provided list of values to the existing list."
   append: [Int!] @fdc_oneOf
@@ -1765,7 +1806,7 @@ input Int_ListUpdate {
   prepend: [Int!] @fdc_oneOf
 }
 
-"Update input of an `Int64` value."
+"Update input of an `Int64` value. Only one of `inc` or `dec` may be specified."
 input Int64_Update {
   "Increment the field by a provided value."
   inc: Int64 @fdc_oneOf
@@ -1773,7 +1814,7 @@ input Int64_Update {
   dec: Int64 @fdc_oneOf
 }
 
-"Update input of an `Int64` list value."
+"Update input of an `Int64` list value. Only one of `append` or `prepend` may be specified."
 input Int64_ListUpdate {
   "Append the provided list of values to the existing list."
   append: [Int64!] @fdc_oneOf
@@ -1781,7 +1822,7 @@ input Int64_ListUpdate {
   prepend: [Int64!] @fdc_oneOf
 }
 
-"Update input of a `Float` value."
+"Update input of a `Float` value. Only one of `inc` or `dec` may be specified."
 input Float_Update {
   "Increment the field by a provided value."
   inc: Float @fdc_oneOf
@@ -1789,7 +1830,7 @@ input Float_Update {
   dec: Float @fdc_oneOf
 }
 
-"Update input of a `Float` list value."
+"Update input of a `Float` list value. Only one of `append` or `prepend` may be specified."
 input Float_ListUpdate {
   "Append the provided list of values to the existing list."
   append: [Float!] @fdc_oneOf
@@ -1797,7 +1838,7 @@ input Float_ListUpdate {
   prepend: [Float!] @fdc_oneOf
 }
 
-"Update input of a `Boolean` list value."
+"Update input of a `Boolean` list value. Only one of `append` or `prepend` may be specified."
 input Boolean_ListUpdate {
   "Append the provided list of values to the existing list."
   append: [Boolean!] @fdc_oneOf
@@ -1805,7 +1846,7 @@ input Boolean_ListUpdate {
   prepend: [Boolean!] @fdc_oneOf
 }
 
-"Update input of an `Any` list value."
+"Update input of an `Any` list value. Only one of `append` or `prepend` may be specified."
 input Any_ListUpdate {
   "Append the provided list of values to the existing list."
   append: [Any!] @fdc_oneOf
@@ -2011,7 +2052,7 @@ directive @auth(
   If the `@auth` on this operation is considered insecure, then developer
   acknowledgement is required to deploy this operation, for new operations.
   `@auth` is considered insecure if `level: PUBLIC`, or if
-  `level: USER|USER_ANON|USER_EMAIL_VERIFIED` and `auth.uid` is not referenced
+  `level: USER/USER_ANON/USER_EMAIL_VERIFIED` and `auth.uid` is not referenced
   in the operation.
   If `insecureReason` is set, no further developer acknowledgement is needed.
   """
