@@ -1,5 +1,6 @@
 // lib/src/core/persistence/local_storage_service.dart
 import 'dart:convert';
+import 'dart:core';
 import 'package:macro_masher/src/features/profile/data/repositories/user_db.dart';
 import 'package:macro_masher/src/features/profile/domain/entities/user_info.dart';
 import 'package:sqflite/sqflite.dart'; // Import sqflite for Database type and ConflictAlgorithm
@@ -39,15 +40,10 @@ class LocalStorageService {
         return await operation(db);
       } catch (e) {
         final errorMsg = e.toString().toLowerCase();
-        print('Database error in executeWithRecovery: $e');
 
         if (errorMsg.contains('read-only') ||
             errorMsg.contains('database_closed') ||
             errorMsg.contains('database is closed')) {
-          print(
-            'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
-          );
-
           try {
             // Get a fresh database instance with recovery if needed
             // Use force recreation on the last retry attempt
@@ -59,7 +55,6 @@ class LocalStorageService {
             await Future.delayed(Duration(milliseconds: 300));
             continue; // Retry the operation with the recovered database
           } catch (recoveryError) {
-            print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
               throw Exception(
                 'Database recovery failed after $maxRetries attempts: $e',
@@ -83,8 +78,6 @@ class LocalStorageService {
       // Use UserDB instance method
       return await userDB.getAllUsers(firebaseUserId: userId);
     } catch (e) {
-      print('Error getting saved user infos: $e');
-      // Rethrow the error to be handled by the caller if needed
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -99,7 +92,6 @@ class LocalStorageService {
         await saveUserInfo(userId, userInfo);
       }
     } catch (e) {
-      print('Error saving user infos: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -130,9 +122,9 @@ class LocalStorageService {
         await userDB.insertUser(userInfoWithId, userId);
       }
     } catch (e) {
-      print('Error saving user info: $e');
-      // Rethrow the error so callers (like FirestoreSyncService) are aware
-      rethrow;
+      if (e.toString().contains('read-only')) {
+        rethrow; // Propagate the specific error
+      }
     }
   }
 
@@ -145,7 +137,6 @@ class LocalStorageService {
         print('LocalStorageService: No user found with ID: $id to delete');
       }
     } catch (e) {
-      print('Error deleting user info: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -167,7 +158,6 @@ class LocalStorageService {
         await saveUserInfo(userId, updatedUserInfo);
       }
     } catch (e) {
-      print('Error setting default user info: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -187,7 +177,6 @@ class LocalStorageService {
 
       return defaultUserInfo;
     } catch (e) {
-      print('Error getting default user info: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -201,7 +190,6 @@ class LocalStorageService {
       final userId = user.id ?? ''; // Ensure userId is available
       await saveUserInfo(userId, user);
     } catch (e) {
-      print('Error saving user: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -223,7 +211,6 @@ class LocalStorageService {
       // ... logging ...
       return success;
     } catch (e) {
-      print('LocalStorageService: Error updating user: $e');
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
       }
@@ -259,10 +246,6 @@ class LocalStorageService {
           return [];
         }
       } catch (e) {
-        print(
-          '[DIAG] Query operation failed in getSyncQueue on DB hash: ${db.hashCode} with error: $e',
-        );
-        print('Error getting sync queue directly from DB: $e');
         if (e.toString().contains('read-only')) {
           rethrow; // Propagate the specific error
         }
@@ -305,13 +288,8 @@ class LocalStorageService {
 
   Future<void> setLastSyncTime(DateTime time) async {
     await executeWithRecovery((db) async {
-      print('[DIAG] setLastSyncTime starting with DB hash: ${db.hashCode}');
       try {
-        print('[DIAG] DB path: ${db.path}');
         final timeString = time.millisecondsSinceEpoch.toString();
-        print(
-          '[DIAG] About to execute insert operation in setLastSyncTime on DB hash: ${db.hashCode}',
-        );
         await db.insert(
           DatabaseHelper.tableSettings,
           {
@@ -320,56 +298,34 @@ class LocalStorageService {
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        print(
-          '[DIAG] Insert operation completed successfully in setLastSyncTime on DB hash: ${db.hashCode}',
-        );
       } catch (e) {
-        print(
-          '[DIAG] Insert operation failed in setLastSyncTime on DB hash: ${db.hashCode} with error: $e',
-        );
-        print('Error setting last sync time directly in DB: $e');
         if (e.toString().contains('read-only')) {
           rethrow; // Propagate the specific error
         }
+        // No print or debug output
       }
     });
   }
 
   Future<DateTime?> getLastSyncTime() async {
     return await executeWithRecovery((db) async {
-      print('[DIAG] getLastSyncTime starting with DB hash: ${db.hashCode}');
       try {
-        print('[DIAG] DB path: ${db.path}');
-        print(
-          '[DIAG] About to execute query operation in getLastSyncTime on DB hash: ${db.hashCode}',
-        );
         final List<Map<String, dynamic>> maps = await db.query(
           DatabaseHelper.tableSettings,
           columns: [DatabaseHelper.columnValue],
           where: '${DatabaseHelper.columnKey} = ?',
           whereArgs: [_lastSyncTimeKey],
         );
-        print(
-          '[DIAG] Query operation completed successfully in getLastSyncTime on DB hash: ${db.hashCode}',
-        );
-
-        if (maps.isNotEmpty) {
-          final timeString = maps.first[DatabaseHelper.columnValue] as String?;
-          if (timeString == null) return null;
-          final timestamp = int.parse(timeString);
-          return DateTime.fromMillisecondsSinceEpoch(timestamp);
-        } else {
-          return null;
-        }
+        if (maps.isEmpty) return null;
+        final timeString = maps.first[DatabaseHelper.columnValue] as String?;
+        if (timeString == null) return null;
+        final timestamp = int.parse(timeString);
+        return DateTime.fromMillisecondsSinceEpoch(timestamp);
       } catch (e) {
-        print(
-          '[DIAG] Query operation failed in getLastSyncTime on DB hash: ${db.hashCode} with error: $e',
-        );
-        print('Error getting last sync time directly from DB: $e');
         if (e.toString().contains('read-only')) {
           rethrow; // Propagate the specific error
         }
-        return null;
+        return null; // Return null on error
       }
     });
   }

@@ -50,18 +50,14 @@ class DatabaseHelper {
         await _database!.rawQuery('PRAGMA quick_check');
         return _database!;
       } catch (e) {
-        print('Database instance check failed: $e');
         // Continue to recreation
         await close();
       }
     }
 
-    print('Getting new database instance...');
-
     try {
       // If a dbPath is provided (e.g., inMemoryDatabasePath for tests), use it
       if (dbPath != null) {
-        print('Opening database at custom path: $dbPath');
         _database = await databaseFactory.openDatabase(
           dbPath,
           options: OpenDatabaseOptions(
@@ -72,7 +68,6 @@ class DatabaseHelper {
             singleInstance: true,
           ),
         );
-        print('DatabaseHelper: Database instance updated (custom path)');
         return _database!;
       }
 
@@ -87,7 +82,6 @@ class DatabaseHelper {
   /// Set the database instance
   static void setDatabase(Database db) {
     _database = db;
-    print('DatabaseHelper: Database instance updated');
   }
 
   /// Gets the database, initializing it if necessary
@@ -101,7 +95,6 @@ class DatabaseHelper {
 
   /// Initialize the database
   static Future<Database> _initDatabase() async {
-    print('DatabaseHelper: Initializing database');
     final databasePath = await getDatabasesPath();
     final path = join(databasePath, _databaseName);
 
@@ -114,7 +107,6 @@ class DatabaseHelper {
       await testFile.writeAsString('test');
       await testFile.delete();
     } catch (e) {
-      print('Error creating database directory: $e');
       throw Exception('Cannot create database directory: $e');
     }
 
@@ -131,8 +123,6 @@ class DatabaseHelper {
       // Verify the database is writable
       return await verifyDatabaseWritable();
     } catch (e) {
-      print('Error initializing database: $e');
-
       // Last resort: delete the database file and try again
       await _recreateDatabaseFile();
 
@@ -154,7 +144,6 @@ class DatabaseHelper {
     if (_database != null && _database!.isOpen) {
       await _database!.close();
       _database = null;
-      print('DatabaseHelper: Database closed');
     }
   }
 
@@ -163,14 +152,10 @@ class DatabaseHelper {
     // If using an in-memory database, just reset the static instance and return a new one
     if (dbPath != null &&
         (dbPath == ':memory:' || dbPath == inMemoryDatabasePath)) {
-      print('forceRecreateDatabase: No-op for in-memory database');
       _database = null;
       return await getInstance(dbPath: dbPath);
     }
 
-    print(
-      'Force recreate requested - implementing aggressive recovery strategy',
-    );
     try {
       return await _recreateDatabaseCompletely();
     } catch (e) {
@@ -217,10 +202,8 @@ class DatabaseHelper {
         await _database!.execute('PRAGMA journal_mode = DELETE');
         await _database!.execute('PRAGMA synchronous = OFF');
 
-        print('DatabaseHelper: Database recreated with minimal constraints');
         return _database!;
       } catch (finalAttemptError) {
-        print('Final attempt to recreate database failed: $finalAttemptError');
         rethrow;
       }
     }
@@ -243,21 +226,15 @@ class DatabaseHelper {
   }
 
   static Future<void> _onConfigure(Database db) async {
-    print('DatabaseHelper: Configuring database...');
-
     // Use rawQuery instead of execute for PRAGMA statements
     await db.rawQuery('PRAGMA foreign_keys = ON');
     await db.rawQuery('PRAGMA journal_mode = DELETE');
     await db.rawQuery('PRAGMA synchronous = NORMAL');
     await db.rawQuery('PRAGMA locking_mode = NORMAL');
     await db.rawQuery('PRAGMA busy_timeout = 5000');
-
-    print('DatabaseHelper: Database configured with pragmas');
   }
 
   static Future _onCreate(Database db, int version) async {
-    print('DatabaseHelper: Creating database tables for version $version');
-
     // Create settings table
     await db.rawQuery('''
       CREATE TABLE IF NOT EXISTS $tableSettings (
@@ -266,7 +243,6 @@ class DatabaseHelper {
         $columnLastModified INTEGER
       )
     ''');
-    print('DatabaseHelper: Created settings table');
 
     // Create users table
     await db.rawQuery('''
@@ -289,7 +265,6 @@ class DatabaseHelper {
         $columnLastModified INTEGER
       )
     ''');
-    print('DatabaseHelper: Created user table');
 
     // Create macro_calculations table
     await db.rawQuery('''
@@ -309,11 +284,9 @@ class DatabaseHelper {
         FOREIGN KEY (user_id) REFERENCES $tableUsers ($columnId) ON DELETE CASCADE
       )
     ''');
-    print('DatabaseHelper: Created macro_calculations table');
 
     // Create meal plans table
     await MealPlanDB.createTable(db);
-    print('DatabaseHelper: Created meal plan table');
 
     // Create meal logs table
     await db.rawQuery('''
@@ -336,27 +309,18 @@ class DatabaseHelper {
         FOREIGN KEY (meal_plan_id) REFERENCES meal_plans (id) ON DELETE CASCADE
       )
     ''');
-    print('DatabaseHelper: Created meal log table');
-
-    print('DatabaseHelper: All tables created successfully');
   }
 
   static Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    print(
-      'DatabaseHelper: Upgrading database from v$oldVersion to v$newVersion',
-    );
-
     if (oldVersion < 2) {
       // Add weight_change_rate column to users table if upgrading from v1
       await db.rawQuery(
         'ALTER TABLE $tableUsers ADD COLUMN $columnWeightChangeRate REAL DEFAULT 1.0',
       );
-      print('DatabaseHelper: Added weight_change_rate column to users table');
     }
 
     if (oldVersion < 3) {
       // Add any schema changes for version 3
-      print('DatabaseHelper: Applying version 3 schema changes');
     }
   }
 
@@ -383,7 +347,6 @@ class DatabaseHelper {
     final dbFile = File(path);
     if (await dbFile.exists()) {
       await dbFile.delete();
-      print('Deleted database file for recreation');
     }
     final journalFile = File('$path-journal');
     if (await journalFile.exists()) {
@@ -410,7 +373,6 @@ class DatabaseHelper {
       if (_database != null) {
         await _database!.close();
         _database = null;
-        print('Closed existing database connection');
       }
 
       // Delete the database file if it exists
@@ -418,9 +380,7 @@ class DatabaseHelper {
       if (await dbFile.exists()) {
         try {
           await dbFile.delete();
-          print('Deleted existing database file');
         } catch (e) {
-          print('Error deleting database file: $e');
           // Try to force delete by using a different approach
           try {
             // On Android, try to use platform channels to delete the file
@@ -428,9 +388,7 @@ class DatabaseHelper {
             await dbFile.rename(tempPath);
             final tempFile = File(tempPath);
             await tempFile.delete();
-            print('Force deleted database file via rename/delete');
           } catch (e2) {
-            print('Failed to force delete database file: $e2');
             // Continue anyway
           }
         }
@@ -440,7 +398,6 @@ class DatabaseHelper {
       final dbDir = Directory(dirname(path));
       if (!await dbDir.exists()) {
         await dbDir.create(recursive: true);
-        print('Created database directory');
       }
 
       // Check if we can write to the directory
@@ -449,14 +406,11 @@ class DatabaseHelper {
         final testFile = File('${dbDir.path}/test_permissions.tmp');
         await testFile.writeAsString('test');
         await testFile.delete();
-        print('Verified write permissions on database directory');
       } catch (e) {
-        print('Warning: Database directory may not be writable: $e');
         // Continue anyway, as we might still be able to create the database
       }
 
       // Create a new database with explicit open flags
-      print('Opening database with explicit flags...');
       final db = await openDatabase(
         path,
         version: _databaseVersion,
@@ -468,7 +422,6 @@ class DatabaseHelper {
       );
 
       // Configure the database with pragmas
-      print('Configuring database...');
       await db.rawQuery('PRAGMA journal_mode = DELETE');
       await db.rawQuery('PRAGMA synchronous = NORMAL');
       await db.rawQuery('PRAGMA locking_mode = NORMAL');
@@ -478,20 +431,16 @@ class DatabaseHelper {
       // Verify the database is writable
       try {
         await db.rawQuery('PRAGMA quick_check');
-        print('Database write test successful');
       } catch (e) {
-        print('Database write test failed: $e');
         await db.close();
         throw Exception('Failed to create a writable database: $e');
       }
 
       // Update the static reference
       _database = db;
-      print('Database instance updated');
 
       return db;
     } catch (e) {
-      print('Database recreation failed: $e');
       rethrow;
     }
   }

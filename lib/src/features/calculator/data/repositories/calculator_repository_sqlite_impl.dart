@@ -23,14 +23,12 @@ class CalculatorRepositorySQLiteImpl {
     // Get the Firebase user ID
     final firebaseUserId = userId;
     if (firebaseUserId == null) {
-      print('CalculatorRepositorySQLiteImpl: No Firebase user ID available');
       return;
     }
 
     // Use the Firebase user ID directly as the local user ID
     // This simplifies the implementation and avoids the need for a separate local ID
     _userId = firebaseUserId;
-    print('CalculatorRepositorySQLiteImpl: Initialized user ID: $_userId');
   }
 
   Future<List<MacroResult>> getSavedMacros() async {
@@ -82,10 +80,7 @@ class CalculatorRepositorySQLiteImpl {
       if (newResult.isDefault) {
         await setDefaultMacro(id);
       }
-
-      print('Successfully saved macro with ID: ${newResult.id}');
     } catch (e) {
-      print('Error saving macro: $e');
       rethrow; // Propagate the error
     }
   }
@@ -111,7 +106,6 @@ class CalculatorRepositorySQLiteImpl {
         }
       }
     } catch (e) {
-      print('Error deleting macro: $e');
       rethrow;
     }
   }
@@ -130,9 +124,7 @@ class CalculatorRepositorySQLiteImpl {
           userId: _userId!, // Use localUserId
         );
       });
-      print('Successfully set default macro with ID: $id');
     } catch (e) {
-      print('Error setting default macro: $e');
       rethrow;
     }
   }
@@ -152,16 +144,8 @@ class CalculatorRepositorySQLiteImpl {
           userId: _userId!, // Use localUserId
         );
       });
-
-      if (result != null) {
-        print('Retrieved default macro: ${result.id}');
-      } else {
-        print('No default macro found for user: $_userId');
-      }
-
       return result;
     } catch (e) {
-      print('Error getting default macro: $e');
       return null; // Return null on error
     }
   }
@@ -172,7 +156,6 @@ class CalculatorRepositorySQLiteImpl {
         return await _macroCalculationDB.getCalculationById(id);
       });
     } catch (e) {
-      print('Error getting macro by ID: $e');
       return null; // Return null on error
     }
   }
