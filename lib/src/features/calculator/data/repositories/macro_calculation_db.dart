@@ -158,16 +158,10 @@ class MacroCalculationDB {
         } else {
           _calculationsCache[userId] = [resultWithId];
         }
-      } else {
-        print(
-          'MacroCalculationDB: Not caching invalid calculation (zero values)',
-        );
-      }
+      } else {}
 
       return id;
     } catch (e) {
-      print('Direct insert failed: $e');
-
       // If direct approach fails, try to force recreate the database
       try {
         await dbHelper.verifyDatabaseWritable();
@@ -207,16 +201,10 @@ class MacroCalculationDB {
           } else {
             _calculationsCache[userId] = [resultWithId];
           }
-        } else {
-          print(
-            'MacroCalculationDB: Not caching invalid calculation (zero values)',
-          );
         }
 
         return id;
       } catch (e2) {
-        print('Insert failed even after database recreation: $e2');
-
         // As a last resort, just update the in-memory cache
         final resultWithId = MacroResult(
           id: id,
@@ -459,9 +447,6 @@ class MacroCalculationDB {
         );
 
         if (maps.isEmpty) {
-          print(
-            'MacroCalculationDB: No default calculation found for user $userId',
-          );
           return null;
         }
 
@@ -471,18 +456,10 @@ class MacroCalculationDB {
         if (_isValidMacroResult(result)) {
           // Update the cache
           _defaultCalculationCache[userId] = result;
-        } else {
-          print(
-            'MacroCalculationDB: Found invalid default calculation with zero values for user $userId',
-          );
-        }
+        } else {}
 
         return result;
       } catch (e2) {
-        print(
-          'getDefaultCalculation failed even after database recreation: $e2',
-        );
-
         // If we have a cached value, return it as a fallback
         if (_defaultCalculationCache.containsKey(userId)) {
           return _defaultCalculationCache[userId];

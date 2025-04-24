@@ -240,6 +240,9 @@ class _SavedResultsTab extends ConsumerWidget {
           itemCount: data.length,
           itemBuilder: (context, index) {
             final macro = data[index];
+            print(
+              'Macro Card: id=${macro.id}, isDefault=${macro.isDefault}, name=${macro.name}, timestamp=${macro.timestamp}',
+            );
 
             return Dismissible(
               key: Key(macro.id ?? ''),
