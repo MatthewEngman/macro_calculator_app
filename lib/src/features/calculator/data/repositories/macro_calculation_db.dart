@@ -65,21 +65,16 @@ class MacroCalculationDB {
         return await operation(db);
       } catch (e) {
         final errorMsg = e.toString().toLowerCase();
-        print('Database error in executeWithRecovery: $e');
 
         if (errorMsg.contains('read-only') ||
             errorMsg.contains('database_closed') ||
             errorMsg.contains('database is closed')) {
-          print(
-            'Attempting database recovery, retry ${retryCount + 1}/$maxRetries',
-          );
           try {
             await dbHelper.verifyDatabaseWritable();
             retryCount++;
             await Future.delayed(Duration(milliseconds: 300));
             continue;
           } catch (recoveryError) {
-            print('Recovery attempt failed: $recoveryError');
             if (retryCount >= maxRetries - 1) {
               throw Exception(
                 'Database recovery failed after $maxRetries attempts: $e',
@@ -136,10 +131,6 @@ class MacroCalculationDB {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
-      print(
-        'MacroCalculationDB: Inserted calculation $id for user $userId (direct)',
-      );
-
       // Update the in-memory cache
       final resultWithId = MacroResult(
         id: id,
@@ -157,9 +148,6 @@ class MacroCalculationDB {
       if (_isValidMacroResult(resultWithId)) {
         if (result.isDefault) {
           _defaultCalculationCache[userId] = resultWithId;
-          print(
-            'MacroCalculationDB: Updated default calculation cache for user $userId',
-          );
         }
 
         if (_calculationsCache.containsKey(userId)) {
@@ -170,9 +158,6 @@ class MacroCalculationDB {
         } else {
           _calculationsCache[userId] = [resultWithId];
         }
-        print(
-          'MacroCalculationDB: Updated calculations cache for user $userId',
-        );
       } else {
         print(
           'MacroCalculationDB: Not caching invalid calculation (zero values)',
@@ -195,10 +180,6 @@ class MacroCalculationDB {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
 
-        print(
-          'MacroCalculationDB: Inserted calculation $id for user $userId (after recreation)',
-        );
-
         // Update the in-memory cache
         final resultWithId = MacroResult(
           id: id,
@@ -216,9 +197,6 @@ class MacroCalculationDB {
         if (_isValidMacroResult(resultWithId)) {
           if (result.isDefault) {
             _defaultCalculationCache[userId] = resultWithId;
-            print(
-              'MacroCalculationDB: Updated default calculation cache for user $userId',
-            );
           }
 
           if (_calculationsCache.containsKey(userId)) {
@@ -229,9 +207,6 @@ class MacroCalculationDB {
           } else {
             _calculationsCache[userId] = [resultWithId];
           }
-          print(
-            'MacroCalculationDB: Updated calculations cache for user $userId',
-          );
         } else {
           print(
             'MacroCalculationDB: Not caching invalid calculation (zero values)',
@@ -259,9 +234,6 @@ class MacroCalculationDB {
         if (_isValidMacroResult(resultWithId)) {
           if (result.isDefault) {
             _defaultCalculationCache[userId] = resultWithId;
-            print(
-              'MacroCalculationDB: Updated default calculation cache for user $userId',
-            );
           }
 
           if (_calculationsCache.containsKey(userId)) {
@@ -272,16 +244,8 @@ class MacroCalculationDB {
           } else {
             _calculationsCache[userId] = [resultWithId];
           }
-          print(
-            'MacroCalculationDB: Updated calculations cache for user $userId',
-          );
-        } else {
-          print(
-            'MacroCalculationDB: Not caching invalid calculation (zero values)',
-          );
         }
 
-        print('Updated in-memory cache as fallback for user $userId');
         return id;
       }
     }
@@ -292,9 +256,6 @@ class MacroCalculationDB {
     required String userId, // Require userId
   }) async {
     if (result.id == null) {
-      print(
-        'MacroCalculationDB: Cannot update calculation without ID. Inserting instead.',
-      );
       await insertCalculation(result, userId);
       return true;
     }
@@ -302,9 +263,6 @@ class MacroCalculationDB {
     // First check if the record exists and get its current lastModified value
     final existingRecord = await getCalculationById(result.id!);
     if (existingRecord == null) {
-      print(
-        'MacroCalculationDB: Record ${result.id} not found for update. Inserting instead.',
-      );
       // Record doesn't exist, insert it instead
       await insertCalculation(result, userId);
       return true;
@@ -316,9 +274,6 @@ class MacroCalculationDB {
 
     // Allow update if the new record is newer or has the same timestamp (idempotency)
     if (existingLastModified.isAfter(newLastModified)) {
-      print(
-        'MacroCalculationDB: Existing record ${result.id} is newer. Skipping update.',
-      );
       // Existing record is newer, don't update
       return false;
     }
@@ -356,9 +311,6 @@ class MacroCalculationDB {
         whereArgs: [result.id],
       ),
     );
-    print(
-      'MacroCalculationDB: Updated calculation ${result.id}. Rows affected: $rowsAffected',
-    );
 
     // Update the in-memory cache
     final resultWithId = MacroResult(
@@ -387,10 +339,6 @@ class MacroCalculationDB {
       } else {
         _calculationsCache[userId] = [resultWithId];
       }
-    } else {
-      print(
-        'MacroCalculationDB: Not caching invalid calculation (zero values)',
-      );
     }
 
     return rowsAffected > 0;
@@ -401,9 +349,6 @@ class MacroCalculationDB {
   }) async {
     // First check the in-memory cache
     if (_calculationsCache.containsKey(userId)) {
-      print(
-        'MacroCalculationDB: Retrieved calculations from in-memory cache for user $userId',
-      );
       return _calculationsCache[userId]!;
     }
 
@@ -467,17 +412,7 @@ class MacroCalculationDB {
 
       // Verify the cached result is valid
       if (_isValidMacroResult(cachedResult!)) {
-        print(
-          'MacroCalculationDB: Retrieved valid default calculation from in-memory cache for user $userId',
-        );
-        print(
-          'Cached Macros: ${cachedResult.calories} kcal, ${cachedResult.protein}g protein',
-        );
         return cachedResult;
-      } else {
-        print(
-          'MacroCalculationDB: Found invalid cached calculation with zero values, will try database',
-        );
       }
     }
 
@@ -496,9 +431,6 @@ class MacroCalculationDB {
       );
 
       if (maps.isEmpty) {
-        print(
-          'MacroCalculationDB: No default calculation found for user $userId',
-        );
         return null;
       }
 
@@ -508,19 +440,10 @@ class MacroCalculationDB {
       if (_isValidMacroResult(result)) {
         // Update the cache
         _defaultCalculationCache[userId] = result;
-        print(
-          'MacroCalculationDB: Found valid default calculation for user $userId (direct)',
-        );
-      } else {
-        print(
-          'MacroCalculationDB: Found invalid default calculation with zero values for user $userId',
-        );
       }
 
       return result;
     } catch (e) {
-      print('Direct getDefaultCalculation failed: $e');
-
       // If direct approach fails, try to force recreate the database
       try {
         await dbHelper.verifyDatabaseWritable();
@@ -548,9 +471,6 @@ class MacroCalculationDB {
         if (_isValidMacroResult(result)) {
           // Update the cache
           _defaultCalculationCache[userId] = result;
-          print(
-            'MacroCalculationDB: Found valid default calculation for user $userId (after recreation)',
-          );
         } else {
           print(
             'MacroCalculationDB: Found invalid default calculation with zero values for user $userId',
@@ -565,9 +485,6 @@ class MacroCalculationDB {
 
         // If we have a cached value, return it as a fallback
         if (_defaultCalculationCache.containsKey(userId)) {
-          print(
-            'MacroCalculationDB: Returning cached default calculation as fallback for user $userId',
-          );
           return _defaultCalculationCache[userId];
         }
 
@@ -605,9 +522,6 @@ class MacroCalculationDB {
         whereArgs: [id],
       ),
     );
-    print(
-      'MacroCalculationDB: Set calculation $id as default for user $userId',
-    );
 
     // Update the in-memory cache
     final calculation = await getCalculationById(id);
@@ -619,7 +533,6 @@ class MacroCalculationDB {
   }
 
   Future<bool> deleteCalculation(String id) async {
-    print('MacroCalculationDB: Deleting calculation $id');
     final deleted = await executeWithRecovery(
       (db) => db.delete(tableName, where: '$columnId = ?', whereArgs: [id]),
     );
