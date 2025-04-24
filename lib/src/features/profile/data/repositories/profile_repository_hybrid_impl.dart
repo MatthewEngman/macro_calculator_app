@@ -163,59 +163,49 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
 
     // Use a map to track unique IDs
     final Map<String, MacroResult> uniqueMacros = {};
-    MacroResult? defaultMacro;
+    MacroResult? latestDefaultMacro;
     DateTime? latestDefaultTimestamp;
 
-    // First pass: collect unique macros and find the latest default
+    // Deduplicate by ID, most recent wins
     for (final macro in macros) {
       final id = macro.id;
       if (id == null) continue;
 
-      // Store in unique map (most recent version wins)
-      if (uniqueMacros.containsKey(id)) {
-        final existingMacro = uniqueMacros[id]!;
-        final existingTime =
-            existingMacro.timestamp ??
-            existingMacro.lastModified ??
-            DateTime(1970);
-        final newTime = macro.timestamp ?? macro.lastModified ?? DateTime(1970);
+      final macroTime = macro.timestamp ?? macro.lastModified ?? DateTime(1970);
 
-        if (newTime.isAfter(existingTime)) {
-          uniqueMacros[id] = macro;
-        }
-      } else {
+      if (!uniqueMacros.containsKey(id) ||
+          macroTime.isAfter(
+            uniqueMacros[id]!.timestamp ??
+                uniqueMacros[id]!.lastModified ??
+                DateTime(1970),
+          )) {
         uniqueMacros[id] = macro;
       }
 
-      // Track the latest default macro
+      // Track the most recent macro marked as default
       if (macro.isDefault == true) {
-        final macroTimestamp =
-            macro.timestamp ?? macro.lastModified ?? DateTime(1970);
-        if (defaultMacro == null ||
-            (latestDefaultTimestamp != null &&
-                macroTimestamp.isAfter(latestDefaultTimestamp))) {
-          defaultMacro = macro;
-          latestDefaultTimestamp = macroTimestamp;
+        if (latestDefaultMacro == null ||
+            macroTime.isAfter(latestDefaultTimestamp ?? DateTime(1970))) {
+          latestDefaultMacro = macro;
+          latestDefaultTimestamp = macroTime;
         }
       }
     }
 
-    // Second pass: ensure only one default
-    if (defaultMacro != null) {
-      // Reset all defaults
-      for (final id in uniqueMacros.keys) {
-        final macro = uniqueMacros[id]!;
-        if (macro.isDefault == true && macro.id != defaultMacro!.id) {
-          // Create a copy with isDefault set to false
-          uniqueMacros[id] = macro.copyWith(isDefault: false);
-        }
+    // Now ensure only ONE macro is marked as default
+    for (final id in uniqueMacros.keys) {
+      final macro = uniqueMacros[id]!;
+      if (macro.isDefault == true &&
+          (latestDefaultMacro == null || macro.id != latestDefaultMacro.id)) {
+        uniqueMacros[id] = macro.copyWith(isDefault: false);
       }
-    } else if (uniqueMacros.isNotEmpty) {
-      // If no default was found, set the most recently modified one as default
+    }
+
+    // If none were default, set most recent as default
+    if (latestDefaultMacro == null && uniqueMacros.isNotEmpty) {
       MacroResult mostRecent = uniqueMacros.values.first;
       DateTime? mostRecentTime =
           mostRecent.timestamp ?? mostRecent.lastModified;
-
       for (final macro in uniqueMacros.values) {
         final macroTime = macro.timestamp ?? macro.lastModified;
         if (mostRecentTime == null ||
@@ -224,8 +214,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
           mostRecentTime = macroTime;
         }
       }
-
-      // Set the most recent as default
       uniqueMacros[mostRecent.id!] = mostRecent.copyWith(isDefault: true);
     }
 

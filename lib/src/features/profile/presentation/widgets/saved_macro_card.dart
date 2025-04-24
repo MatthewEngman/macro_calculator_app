@@ -72,6 +72,9 @@ class SavedMacroCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    print(
+      'SavedMacroCard: id=${macro.id}, isDefault=${macro.isDefault}, name=${macro.name}, timestamp=${macro.timestamp}',
+    );
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final dateFormat = DateFormat('MMM d, y');
