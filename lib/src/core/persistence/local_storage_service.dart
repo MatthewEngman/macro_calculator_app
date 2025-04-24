@@ -16,14 +16,7 @@ class LocalStorageService {
   static const String _lastSyncTimeKey = 'last_sync_time';
 
   // Update constructor to accept only UserDB
-  LocalStorageService(this.userDB) {
-    print('[DIAG] LocalStorageService constructed');
-    try {
-      print('[DIAG] userDB: $userDB');
-    } catch (e) {
-      print('[DIAG] Error in constructor: $e');
-    }
-  }
+  LocalStorageService(this.userDB);
 
   /// Generic method to execute database operations with automatic recovery
   /// This handles both read-only errors and database closure errors
@@ -131,11 +124,7 @@ class LocalStorageService {
   Future<void> deleteUserInfo(String userId, String id) async {
     try {
       final rowsDeleted = await userDB.deleteUser(id);
-      if (rowsDeleted > 0) {
-        print('LocalStorageService: Successfully deleted user with ID: $id');
-      } else {
-        print('LocalStorageService: No user found with ID: $id to delete');
-      }
+      if (rowsDeleted > 0) ;
     } catch (e) {
       if (e.toString().contains('read-only')) {
         rethrow; // Propagate the specific error
@@ -201,9 +190,6 @@ class LocalStorageService {
     try {
       // UserDB methods already log hashcode and errors
       if (userInfo.id == null) {
-        print(
-          'LocalStorageService: Cannot update user without ID, inserting instead',
-        );
         await userDB.insertUser(userInfo, firebaseUserId);
         return true;
       }
@@ -221,20 +207,12 @@ class LocalStorageService {
   // Sync queue methods - REWRITTEN to use DatabaseHelper.getInstance()
   Future<List<Map<String, dynamic>>?> getSyncQueue() async {
     return await executeWithRecovery((db) async {
-      print('[DIAG] getSyncQueue starting with DB hash: ${db.hashCode}');
       try {
-        print('[DIAG] DB path: ${db.path}');
-        print(
-          '[DIAG] About to execute query operation in getSyncQueue on DB hash: ${db.hashCode}',
-        );
         final List<Map<String, dynamic>> maps = await db.query(
           DatabaseHelper.tableSettings,
           columns: [DatabaseHelper.columnValue],
           where: '${DatabaseHelper.columnKey} = ?',
           whereArgs: [_syncQueueKey],
-        );
-        print(
-          '[DIAG] Query operation completed successfully in getSyncQueue on DB hash: ${db.hashCode}',
         );
 
         if (maps.isNotEmpty) {
@@ -258,11 +236,7 @@ class LocalStorageService {
     await executeWithRecovery((db) async {
       print('[DIAG] setSyncQueue starting with DB hash: ${db.hashCode}');
       try {
-        print('[DIAG] DB path: ${db.path}');
         final queueJson = jsonEncode(queue);
-        print(
-          '[DIAG] About to execute insert operation in setSyncQueue on DB hash: ${db.hashCode}',
-        );
         await db.insert(
           DatabaseHelper.tableSettings,
           {
@@ -271,14 +245,7 @@ class LocalStorageService {
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        print(
-          '[DIAG] Insert operation completed successfully in setSyncQueue on DB hash: ${db.hashCode}',
-        );
       } catch (e) {
-        print(
-          '[DIAG] Insert operation failed in setSyncQueue on DB hash: ${db.hashCode} with error: $e',
-        );
-        print('Error setting sync queue directly in DB: $e');
         if (e.toString().contains('read-only')) {
           rethrow; // Propagate the specific error
         }

@@ -45,7 +45,6 @@ class CalculatorRepositorySQLiteImpl {
         );
       });
     } catch (e) {
-      print('Error getting saved macros: $e');
       return []; // Return empty list on error
     }
   }

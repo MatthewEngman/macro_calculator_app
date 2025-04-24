@@ -30,15 +30,10 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
   // Synchronize database data with SharedPreferences for backup
   Future<void> _syncToSharedPreferences(String userId) async {
     try {
-      print(
-        'ProfileRepositoryHybridImpl: Syncing data to SharedPreferences for user $userId',
-      );
-
       // Get calculations from database
       final calculations = await _macroDB.getAllCalculations(userId: userId);
 
       if (calculations.isEmpty) {
-        print('No calculations to sync to SharedPreferences');
         return;
       }
 
@@ -68,9 +63,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
 
       // Save to SharedPreferences
       await prefs.setString(key, json.encode(jsonData));
-      print(
-        'ProfileRepositoryHybridImpl: Successfully synced ${calculations.length} calculations to SharedPreferences',
-      );
     } catch (e) {
       print(
         'ProfileRepositoryHybridImpl: Error syncing to SharedPreferences: $e',
@@ -84,10 +76,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
     String userId,
   ) async {
     try {
-      print(
-        'ProfileRepositoryHybridImpl: Retrieving calculations from SharedPreferences for user $userId',
-      );
-
       // Get SharedPreferences instance
       final prefs = await SharedPreferences.getInstance();
       final key = 'saved_macros_$userId';
@@ -95,7 +83,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
       // Get data from SharedPreferences
       final jsonString = prefs.getString(key);
       if (jsonString == null || jsonString.isEmpty) {
-        print('No data found in SharedPreferences');
         return [];
       }
 
@@ -124,9 +111,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
             );
           }).toList();
 
-      print(
-        'ProfileRepositoryHybridImpl: Retrieved ${calculations.length} calculations from SharedPreferences',
-      );
       return calculations;
     } catch (e) {
       print(
@@ -139,7 +123,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
   @override
   Future<List<MacroResult>> getSavedMacros({String? userId}) async {
     final uid = _getUserId(userId);
-    print('ProfileRepositoryHybridImpl: Getting saved macros for user $uid');
 
     try {
       // First try to get from database
@@ -158,23 +141,15 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
       // If no results from database, try SharedPreferences
       final prefsResults = await _getCalculationsFromSharedPreferences(uid);
       if (prefsResults.isNotEmpty) {
-        print(
-          'ProfileRepositoryHybridImpl: Using SharedPreferences fallback data',
-        );
         return _filterAndEnsureSingleDefault(prefsResults);
       }
 
       // If still no results, return empty list
       return [];
     } catch (e) {
-      print('ProfileRepositoryHybridImpl: Error getting saved macros: $e');
-
       // On error, try SharedPreferences
       final prefsResults = await _getCalculationsFromSharedPreferences(uid);
       if (prefsResults.isNotEmpty) {
-        print(
-          'ProfileRepositoryHybridImpl: Using SharedPreferences fallback data after error',
-        );
         return _filterAndEnsureSingleDefault(prefsResults);
       }
 
@@ -254,16 +229,12 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
       uniqueMacros[mostRecent.id!] = mostRecent.copyWith(isDefault: true);
     }
 
-    print(
-      'ProfileRepositoryHybridImpl: Filtered to ${uniqueMacros.length} unique macros with one default',
-    );
     return uniqueMacros.values.toList();
   }
 
   @override
   Future<void> saveMacro(MacroResult result, {String? userId}) async {
     final uid = _getUserId(userId);
-    print('ProfileRepositoryHybridImpl: Saving macro for user $uid');
 
     try {
       // Save to primary storage
@@ -318,15 +289,11 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
   @override
   Future<void> deleteMacro(String id, {String? userId}) async {
     final uid = _getUserId(userId);
-    print('ProfileRepositoryHybridImpl: Deleting macro $id for user $uid');
     await syncService.deleteUserInfo(uid, id);
   }
 
   @override
   Future<void> setDefaultMacro(String id, {required String userId}) async {
-    print(
-      'ProfileRepositoryHybridImpl: Setting default macro $id for user $userId',
-    );
     await syncService.setDefaultUserInfo(userId, id);
   }
 
@@ -338,46 +305,25 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
 
     while (retryCount < maxRetries) {
       try {
-        print(
-          'ProfileRepositoryHybridImpl: Getting default macro for user $uid (attempt ${retryCount + 1})',
-        );
-
         // First try to get from MacroCalculationDB which has in-memory cache
         final macroResult = await _macroDB.getDefaultCalculation(userId: uid);
 
         if (macroResult != null) {
-          print(
-            'ProfileRepositoryHybridImpl: Found default macro in MacroCalculationDB',
-          );
-          print('ID: ${macroResult.id}, Calories: ${macroResult.calories}');
-
           // Check if the macro result has valid values
           if (macroResult.calories > 0 && macroResult.protein > 0) {
             // Cache this valid result for future fallbacks
             _lastValidMacroResult = macroResult;
             return macroResult;
           } else {
-            print(
-              'ProfileRepositoryHybridImpl: Found macro has zero values, will try to find better data',
-            );
+            // Found macro has zero values, will try to find better data
           }
         }
 
         // If not found in MacroCalculationDB or values are zero, try the FirestoreSyncService
-        print(
-          'ProfileRepositoryHybridImpl: Trying FirestoreSyncService for complete user info',
-        );
         final userInfo = await syncService.getDefaultUserInfo(uid);
 
         // Check if we have a complete user info that can be used for calculation
         if (userInfo != null && _isUserInfoComplete(userInfo)) {
-          print('ProfileRepositoryHybridImpl: Found complete user info');
-          print('ID: ${userInfo.id}, Name: ${userInfo.name}');
-          print('Age: ${userInfo.age}, Sex: ${userInfo.sex}');
-          print(
-            'Weight: ${userInfo.weight}, Height: ${userInfo.feet}\'${userInfo.inches}"',
-          );
-
           // Calculate macros from user info
           final macroResultFromUserInfo = MacroResult.fromUserInfo(
             userInfo,
@@ -388,18 +334,8 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
           // Check if the calculation produced valid values
           if (macroResultFromUserInfo.calories > 0 &&
               macroResultFromUserInfo.protein > 0) {
-            print(
-              'ProfileRepositoryHybridImpl: Valid calculation from user info',
-            );
-            print(
-              'Calories: ${macroResultFromUserInfo.calories}, Protein: ${macroResultFromUserInfo.protein}',
-            );
-
             // Save this calculation to MacroCalculationDB to update the cache
             if (macroResultFromUserInfo.id != null) {
-              print(
-                'ProfileRepositoryHybridImpl: Saving valid macro to MacroCalculationDB',
-              );
               try {
                 await _macroDB.insertCalculation(
                   macroResultFromUserInfo.copyWith(isDefault: true),
@@ -415,31 +351,19 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
             _lastValidMacroResult = macroResultFromUserInfo;
             return macroResultFromUserInfo;
           } else {
-            print(
-              'ProfileRepositoryHybridImpl: Calculation produced invalid values',
-            );
+            // Found macro has zero values, will try to find better data
           }
         } else if (userInfo != null) {
-          print('ProfileRepositoryHybridImpl: User info is incomplete');
-          print('Missing fields: ${_getMissingFields(userInfo)}');
+          // User info is incomplete
         }
 
         // If we reach here, we couldn't get valid macro values from DB or FirestoreSyncService
         // Try to use the last valid macro result as a fallback
         if (_lastValidMacroResult != null) {
-          print(
-            'ProfileRepositoryHybridImpl: Using last valid macro result as fallback',
-          );
-          print(
-            'ID: ${_lastValidMacroResult!.id}, Calories: ${_lastValidMacroResult!.calories}',
-          );
           return _lastValidMacroResult;
         }
 
         // As a last resort, try to get any saved macro from the database
-        print(
-          'ProfileRepositoryHybridImpl: Trying to find any valid saved macro',
-        );
         final savedMacros = await getSavedMacros(userId: uid);
 
         // Only use macros that already exist and have valid values
@@ -457,7 +381,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
           });
 
           final mostRecentValidMacro = validMacros.first;
-          print('Using existing valid macro: ${mostRecentValidMacro.id}');
           _lastValidMacroResult = mostRecentValidMacro;
           return mostRecentValidMacro;
         }
@@ -465,12 +388,8 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
         // If we've reached this point, we don't have any valid macros
         // Instead of creating a fallback, just return null
         // The UI will handle this case appropriately
-        print('No valid macros found, returning null');
         return null;
       } catch (e) {
-        print(
-          'ProfileRepositoryHybridImpl: Error getting default macro (attempt ${retryCount + 1}): $e',
-        );
         retryCount++;
 
         // If we've reached max retries, use fallback
@@ -488,9 +407,6 @@ class ProfileRepositoryHybridImpl implements ProfileRepository {
 
     // Even on error, try to return the last valid result if available
     if (_lastValidMacroResult != null) {
-      print(
-        'ProfileRepositoryHybridImpl: Returning last valid result after error',
-      );
       return _lastValidMacroResult;
     }
 
